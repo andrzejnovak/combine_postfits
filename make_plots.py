@@ -49,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('-f',
                         "--format",
                         type=str,
-                        default='both',
+                        default='png',
                         choices={'png', 'pdf', 'both'},
                         help="Plot format")
 
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     # Make plots
     fd = uproot.open(args.input)
     rfd = r.TFile.Open(args.input)
-    with open("style_eric.yml", "r") as stream:
+    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "style_eric.yml"), "r") as stream:
         try:
             style = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
@@ -95,8 +95,8 @@ if __name__ == '__main__':
         for channel in channels:
 
             fig, (ax, rax) = plot(fd, fit_type, cats=[channel], restoreNorm=True,
-                sigs = ['phitt125'],
-                bkgs = ['multijet', 'top', 'wlnu', "dy", "htt125"],
+                # sigs = ['phitt125'],
+                # bkgs = ['multijet', 'top', 'wlnu', "dy", "htt125"],
                 clipx=True,
                 fitDiag_root=rfd,
                 style=style,

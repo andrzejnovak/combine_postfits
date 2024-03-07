@@ -1,0 +1,79 @@
+# Datacard for <Channel (wlnuCRpasshadel2016APV) instance at 0x7f8f19b43e10> generated on 2024-03-04 10:45:47.835058
+imax 1 # number of categories ('bins' but here we are using shape templates)
+jmax 5 # number of samples minus 1
+kmax 56 # number of nuisance parameters
+shapes * wlnuCRpasshadel2016APV hadelModel.root hadelModel:wlnuCRpasshadel2016APV_$PROCESS hadelModel:wlnuCRpasshadel2016APV_$PROCESS_$SYSTEMATIC
+bin wlnuCRpasshadel2016APV
+observation 36.000
+bin                             wlnuCRpasshadel2016APV  wlnuCRpasshadel2016APV  wlnuCRpasshadel2016APV  wlnuCRpasshadel2016APV  wlnuCRpasshadel2016APV  wlnuCRpasshadel2016APV
+process                                       phitt125                      dy                  htt125                multijet                     top                    wlnu
+process                                              0                       1                       2                       3                       4                       5
+rate                                             0.074                   6.032                   0.133                   0.114                   8.737                  39.696
+CMS_id_hadel lnN                                1.0200                       -                       -                       -                       -                       -
+CMS_id_hadel lnN                                     -                       -                       -                       -                  1.0200                       -
+CMS_id_hadel lnN                                     -                  1.0200                       -                       -                       -                       -
+CMS_id_hadel lnN                                     -                       -                       -                       -                       -                  1.0200
+CMS_id_hadel lnN                                     -                       -                  1.0200                       -                       -                       -
+CMS_lumi_16APV lnN                                   -                       -                       -                       -                       -                  1.0100
+CMS_lumi_16APV lnN                                   -                  1.0100                       -                       -                       -                       -
+CMS_lumi_16APV lnN                                   -                       -                  1.0100                       -                       -                       -
+CMS_lumi_16APV lnN                              1.0100                       -                       -                       -                       -                       -
+CMS_lumi_16APV lnN                                   -                       -                       -                       -                  1.0100                       -
+CMS_lumi_all lnN                                1.0060                       -                       -                       -                       -                       -
+CMS_lumi_all lnN                                     -                       -                  1.0060                       -                       -                       -
+CMS_lumi_all lnN                                     -                  1.0060                       -                       -                       -                       -
+CMS_lumi_all lnN                                     -                       -                       -                       -                  1.0060                       -
+CMS_lumi_all lnN                                     -                       -                       -                       -                       -                  1.0060
+CMS_top_norm lnN                                     -                       -                       -                       -                  1.0500                       -
+CMS_trig_hadel lnN                              1.0200                       -                       -                       -                       -                       -
+CMS_trig_hadel lnN                                   -                       -                       -                       -                       -                  1.0200
+CMS_trig_hadel lnN                                   -                       -                       -                       -                  1.0200                       -
+CMS_trig_hadel lnN                                   -                  1.0200                       -                       -                       -                       -
+CMS_trig_hadel lnN                                   -                       -                  1.0200                       -                       -                       -
+CMS_vvqq_norm lnN                                    -                  1.0500                       -                       -                       -                       -
+CMS_wlnu_norm lnN                                    -                       -                       -                       -                       -                  1.1000
+jeresol shape                                        -                       -                       -                       -                       -                  1.0000
+jeresol shape                                        -                  1.0000                       -                       -                       -                       -
+jeresol shape                                   1.0000                       -                       -                       -                       -                       -
+jeresol shape                                        -                       -                  1.0000                       -                       -                       -
+jeresol shape                                        -                       -                       -                       -                  1.0000                       -
+jescale shape                                        -                       -                  1.0000                       -                       -                       -
+jescale shape                                        -                       -                       -                       -                       -                  1.0000
+jescale shape                                   1.0000                       -                       -                       -                       -                       -
+jescale shape                                        -                       -                       -                       -                  1.0000                       -
+jescale shape                                        -                  1.0000                       -                       -                       -                       -
+l1prefire shape                                      -                       -                       -                       -                       -                  1.0000
+l1prefire shape                                      -                       -                       -                       -                  1.0000                       -
+l1prefire shape                                      -                       -                  1.0000                       -                       -                       -
+l1prefire shape                                      -                  1.0000                       -                       -                       -                       -
+l1prefire shape                                 1.0000                       -                       -                       -                       -                       -
+qcd_Rpass_hadel shape                                -                       -                       -                  1.0000                       -                       -
+r_h125_hadel lnN                                     -                       -                  1.1000                       -                       -                       -
+top_highmass_bin13_hadel shape                       -                       -                       -                       -                  1.0000                       -
+top_highmass_bin14_hadel shape                       -                       -                       -                       -                  1.0000                       -
+top_highmass_bin15_hadel shape                       -                       -                       -                       -                  1.0000                       -
+top_highmass_bin16_hadel shape                       -                       -                       -                       -                  1.0000                       -
+top_highmass_bin17_hadel shape                       -                       -                       -                       -                  1.0000                       -
+toppt shape                                          -                       -                       -                       -                  1.0000                       -
+uescale shape                                        -                       -                  1.0000                       -                       -                       -
+uescale shape                                   1.0000                       -                       -                       -                       -                       -
+uescale shape                                        -                       -                       -                       -                  1.0000                       -
+uescale shape                                        -                  1.0000                       -                       -                       -                       -
+uescale shape                                        -                       -                       -                       -                       -                  1.0000
+wlnuhighmass_bin13_hadel shape                       -                       -                       -                       -                       -                  1.0000
+wlnuhighmass_bin14_hadel shape                       -                       -                       -                       -                       -                  1.0000
+wlnuhighmass_bin15_hadel shape                       -                       -                       -                       -                       -                  1.0000
+wlnuhighmass_bin16_hadel shape                       -                       -                       -                       -                       -                  1.0000
+wlnuhighmass_bin17_hadel shape                       -                       -                       -                       -                       -                  1.0000
+dy_eff_hadel extArg hadelModel.root:hadelModel
+topLeffSF_hadel extArg hadelModel.root:hadelModel
+topeffSF_hadel extArg hadelModel.root:hadelModel
+wlnuLeffSF_hadel extArg hadelModel.root:hadelModel
+wlnueffSF_hadel extArg hadelModel.root:hadelModel
+dy_eff_hadel_effect_wlnuCRpasshadel2016APV_phitt125 rateParam wlnuCRpasshadel2016APV phitt125 (1*@0) dy_eff_hadel
+dy_eff_hadel_effect_wlnuCRpasshadel2016APV_dy rateParam wlnuCRpasshadel2016APV dy (1*@0) dy_eff_hadel
+dy_eff_hadel_effect_wlnuCRpasshadel2016APV_htt125 rateParam wlnuCRpasshadel2016APV htt125 (1*@0) dy_eff_hadel
+topLeffSF_hadel_effect_wlnuCRpasshadel2016APV_top rateParam wlnuCRpasshadel2016APV top (1*@0) topLeffSF_hadel
+topeffSF_hadel_effect_wlnuCRpasshadel2016APV_top rateParam wlnuCRpasshadel2016APV top (1*@0) topeffSF_hadel
+wlnuLeffSF_hadel_effect_wlnuCRpasshadel2016APV_wlnu rateParam wlnuCRpasshadel2016APV wlnu (1*@0) wlnuLeffSF_hadel
+wlnueffSF_hadel_effect_wlnuCRpasshadel2016APV_wlnu rateParam wlnuCRpasshadel2016APV wlnu (1*@0) wlnueffSF_hadel

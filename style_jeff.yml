@@ -1,0 +1,51 @@
+data:
+  label: Data
+  color: black
+  hatch: null
+total_signal:
+  label: Signal
+  color: '#e42536'
+  hatch: null
+zqq:
+  label: $Z(q\bar{q})$
+  color: '#3f90da'
+  hatch: null
+wqq:
+  label: $W(q\bar{q})$
+  color: '#ffa90e'
+  hatch: null
+tt:
+  label: $t\bar{t}$
+  color: '#bd1f01'
+  hatch: null
+st:
+  label: Single-t
+  color: '#94a4a2'
+  hatch: null
+top:
+  label: Top
+  color: '#832db6'
+  hatch: null
+  contains:
+  - tt
+  - st
+dy:
+  label: DY
+  color: '#a96b59'
+  hatch: null
+wlnu:
+  label: $W(\ell\nu)$
+  color: '#e76300'
+  hatch: null
+hbb:
+  label: $H(b\bar{b})$
+  color: '#b9ac70'
+  hatch: null
+qcd:
+  label: QCD
+  color: gray
+  hatch: null
+m150:
+  label: $Z'_{150}(q\bar{q})$
+  color: '#e42536'
+  hatch: null

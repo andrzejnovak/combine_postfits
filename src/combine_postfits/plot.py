@@ -1,14 +1,12 @@
+from collections import defaultdict 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from typeguard import typechecked
 import logging
-# import uproot
 import pprint
 import numpy as np
-np.seterr(divide='ignore', invalid='ignore')
 from scipy import stats
-# import hist
 import mplhep as hep
 
 from .utils import cmap10
@@ -16,6 +14,8 @@ from .utils import extract_mergemap, fill_colors
 from .utils import format_legend, format_categories
 from .utils import get_fit_val, get_fit_unc
 from .utils import getha, geths, merge_hists
+
+np.seterr(divide='ignore', invalid='ignore')
 
 # set up pretty printer for logging
 pp = pprint.PrettyPrinter(indent=2, sort_dicts=False)
@@ -71,9 +71,8 @@ def plot(fitDiag_uproot,
         if key not in hist_keys:
             raise ValueError(f"Hist '{key}' is missing. Available keys are: {hist_keys}")
     data = getha('data', channels, restoreNorm=restoreNorm)
-    hist_dict = geths(hist_keys, channels, sort=False, restoreNorm=restoreNorm)
+    hist_dict = geths(hist_keys, channels, sort=False, restoreNorm=restoreNorm, style_dict=style)
     tot_bkg =  getha('total_background', channels, restoreNorm=restoreNorm)
-    tot_sig =  getha('total_signal', channels, restoreNorm=restoreNorm)
     tot =  getha('total', channels, restoreNorm=restoreNorm)    
     # Prepare merges
     hist_dict = merge_hists(hist_dict, merge)
@@ -86,7 +85,7 @@ def plot(fitDiag_uproot,
         if isinstance(remove_tiny, str) and remove_tiny.endswith("%"):
             _th = float(remove_tiny[:-1]) * 0.01 * np.sum(data.values())
         elif remove_tiny is True:
-            _th = th = 0.05 * np.sum(data.values())
+            _th = 0.05 * np.sum(data.values())
         elif np.isnumeric(remove_tiny):
             _th = remove_tiny
         else:

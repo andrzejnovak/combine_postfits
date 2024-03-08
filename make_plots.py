@@ -8,9 +8,9 @@ matplotlib.use('Agg')
 import mplhep as hep
 import argparse
 
-hep.style.use("CMS")
-
 from combine_postfits import plot, utils
+
+hep.style.use("CMS")
 
 if __name__ == '__main__':
     def str2bool(v):

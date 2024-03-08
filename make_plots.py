@@ -9,10 +9,9 @@ import mplhep as hep
 import matplotlib.pyplot as plt
 import argparse
 
-from plot import plot
 hep.style.use("CMS")
 
-
+from combine_postfits import plot, utils
 
 if __name__ == '__main__':
     def str2bool(v):
@@ -46,12 +45,23 @@ if __name__ == '__main__':
                         choices={"2016", "2017", "2018", ""},
                         type=str,
                         help="year label")
+    parser.add_argument("-s",
+                        "--style",
+                        default=None,
+                        dest='style',
+                        help="Style file yaml e.g. `style.yml`")
     parser.add_argument('-f',
                         "--format",
                         type=str,
                         default='png',
                         choices={'png', 'pdf', 'both'},
                         help="Plot format")
+    parser.add_argument(
+                        "--cmap",
+                        type=str,
+                        default=None,
+                        help="Name of `cmap` to fill colors in `style.yml` from. Eg.: Tiepolo;Renoir;tab10")   
+
 
     pseudo = parser.add_mutually_exclusive_group(required=True)
     pseudo.add_argument('--data', action='store_false', dest='pseudo')
@@ -84,25 +94,38 @@ if __name__ == '__main__':
     # Make plots
     fd = uproot.open(args.input)
     rfd = r.TFile.Open(args.input)
-    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "style_eric.yml"), "r") as stream:
-        try:
-            style = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-            
+    if args.style is not None:
+        with open(args.style, "r") as stream:
+            try:
+                style = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+    else:
+        style = utils.make_style_dict_yaml(fd, cmap=args.cmap)
+        logging.warning(f"No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
+                        "The `plot` function will respect the order of samples in the style yaml unless overwritten.")
+        with open('sty.yml', 'w') as outfile:
+            yaml.dump(style, outfile, default_flow_style=False, sort_keys=False)
+        
+    if args.pseudo and args.toys:
+        style['data']['label'] = 'Toys'
+    elif args.pseudo and not args.toys:
+        style['data']['label'] = 'MC'
+    else:
+        style['data']['label'] = 'Data'
+                
     for fit_type in fit_types:
         channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
         for channel in channels:
 
-            fig, (ax, rax) = plot(fd, fit_type, cats=[channel], restoreNorm=True,
-                # sigs = ['phitt125'],
-                # bkgs = ['multijet', 'top', 'wlnu', "dy", "htt125"],
+            fig, (ax, rax) = plot.plot(fd, fit_type, cats=[channel], restoreNorm=True,
                 clipx=True,
                 fitDiag_root=rfd,
                 style=style,
                 cat_info=1,
             )
             rax.set_xlabel(r"$m_{\tau\bar{\tau}}^{reg}$")
-            hep.cms.label("Private Work", data=False, ax=ax)
+            hep.cms.label("Private Work", data=not args.pseudo, ax=ax)
             for fmt in format:
                 fig.savefig(f"{args.output_folder}/{channel}_{fit_type}.{fmt}", format=fmt)
+            sys.exit()

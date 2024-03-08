@@ -6,7 +6,6 @@ import yaml
 import matplotlib
 matplotlib.use('Agg')
 import mplhep as hep
-import matplotlib.pyplot as plt
 import argparse
 
 hep.style.use("CMS")
@@ -102,8 +101,10 @@ if __name__ == '__main__':
                 print(exc)
     else:
         style = utils.make_style_dict_yaml(fd, cmap=args.cmap)
-        logging.warning(f"No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
-                        "The `plot` function will respect the order of samples in the style yaml unless overwritten.")
+        logging.warning("No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
+                        "The `plot` function will respect the order of samples in the style yaml unless overwritten. "
+                        "\nTo pass LaTeX expressions to 'label' use single quotes eg. '$H_{125}(\\tau\\bar{\\tau})$'"
+                        )
         with open('sty.yml', 'w') as outfile:
             yaml.dump(style, outfile, default_flow_style=False, sort_keys=False)
         
@@ -128,4 +129,3 @@ if __name__ == '__main__':
             hep.cms.label("Private Work", data=not args.pseudo, ax=ax)
             for fmt in format:
                 fig.savefig(f"{args.output_folder}/{channel}_{fit_type}.{fmt}", format=fmt)
-            sys.exit()

@@ -12,11 +12,10 @@ from scipy import stats
 import mplhep as hep
 
 from .utils import cmap10
-from .utils import clean_yaml, extract_mergemap, fill_colors, prep_yaml
+from .utils import extract_mergemap, fill_colors
 from .utils import format_legend, format_categories
 from .utils import get_fit_val, get_fit_unc
-from .utils import tgasym_to_err, tgasym_to_hist
-from .utils import geth, getha, geths, merge_hists
+from .utils import getha, geths, merge_hists
 
 # set up pretty printer for logging
 pp = pprint.PrettyPrinter(indent=2, sort_dicts=False)
@@ -81,13 +80,7 @@ def plot(fitDiag_uproot,
     # Soft-fail on missing hist
     def hist_dict_fcn(name):
         return hist_dict[name]
-    
-    # Remove negatives from stackable:
-    for key in hist_keys:
-        if np.any(hist_dict_fcn(key).values() < 0):
-            logging.warning(f"  Hist {key} has negative values and will not be show in the stack")
-            logging.debug(f"  Hist {key}: {hist_dict_fcn(key).values()}")
-            hist_keys.remove(key)    
+      
     # Remove tiny
     if remove_tiny:
         if isinstance(remove_tiny, str) and remove_tiny.endswith("%"):
@@ -108,6 +101,8 @@ def plot(fitDiag_uproot,
     # Fetch keys
     default_signal = [k for k in hist_keys if channels[0][k] == channels[0]['total_signal'] and 'total' not in k]
     default_bkgs = [k for k in hist_keys if k not in default_signal and k != onto and 'total' not in k]
+    _sortable, _extra = [k for k in default_bkgs if k in style.keys()], [k for k in default_bkgs if k not in style.keys()]
+    default_bkgs = ([k for k in style.keys() if k in _sortable]+_extra)[::-1]
     if len(bkgs) == 0:
         bkgs = default_bkgs
     if len(sigs) > 2:
@@ -115,6 +110,14 @@ def plot(fitDiag_uproot,
     elif len(sigs) == 0:
         sigs = default_signal
     bkgs = [bkg for bkg in bkgs if bkg != onto and bkg not in sigs]
+    # Remove negatives from backgrounds/stackable:
+    sigs_ratio = sigs.copy()  # Allow negatives in ratio
+    for sg in [sigs, bkgs]:
+        for key in sg:
+            if np.any(hist_dict_fcn(key).values() < 0):
+                logging.warning(f"  Hist {key} has negative values and will not be show in the stack")
+                logging.debug(f"  Hist {key}: {hist_dict_fcn(key).values()}")
+                sg.remove(key)  
     logging.info(f"  Signals: {','.join(sigs)}.")
     logging.info(f"  Backgrounds: {','.join(bkgs)}.")
     logging.info(f"  Onto bkg: {onto}.")
@@ -204,9 +207,9 @@ def plot(fitDiag_uproot,
 #                  color=style['total_signal']['color'], lw=2,
 #                  label='Signal',
 #                 )
-    hep.histplot([hist_dict_fcn(sig)/np.sqrt(data.variances()) for sig in sigs], ax=rax,
-                 color=[style[sig]['color'] for sig in sigs], stack=True, histtype='fill',
-                 label=[style[sig]['label'] for sig in sigs],
+    hep.histplot([hist_dict_fcn(sig)/np.sqrt(data.variances()) for sig in sigs_ratio], ax=rax,
+                 color=[style[sig]['color'] for sig in sigs_ratio], stack=True, histtype='fill',
+                 label=[style[sig]['label'] for sig in sigs_ratio],
                 )
     ## Bkg Unc
     yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(data.variances()  * tot_bkg.axes[0].widths)
@@ -243,7 +246,7 @@ def plot(fitDiag_uproot,
             _binwidth = f"{np.mean(data.axes[0].widths):.0f}"
         else:
             _binwidth = f"{stats.mode(np.mean(data.axes[0].widths)).mode:.0f}"
-            logging.warning(f"  Bin-width is not constant. Consider setting custom y-label")
+            logging.warning("  Bin-width is not constant. Consider setting custom y-label")
         ax.set_ylabel(f"Events / {_binwidth}GeV")
     else:
         ax.set_ylabel("Events / GeV")

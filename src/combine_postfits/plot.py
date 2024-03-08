@@ -96,7 +96,7 @@ def plot(
             )
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
-        hist_keys, channels, sort=False, restoreNorm=restoreNorm, style_dict=style
+        hist_keys, channels, restoreNorm=restoreNorm, style_dict=None,
     )
     tot_bkg = getha("total_background", channels, restoreNorm=restoreNorm)
     tot = getha("total", channels, restoreNorm=restoreNorm)
@@ -447,14 +447,14 @@ def plot(
         hep.plot.yscale_anchored_text(ax)
 
     if chi2:
-        chi2 = np.sum(
+        chi2_val = np.sum(
             np.nan_to_num(
                 abs(data.values() - tot.values()) / data.variances(), posinf=0, neginf=0
             )
         )
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            rf"$\chi^2$ = {chi2:.2f}",
+            rf"$\chi^2$ = {chi2_val:.2f}",
             loc="upper left",  # pad=0.8,
             prop=dict(size="x-small", ha="center"),
             frameon=False,

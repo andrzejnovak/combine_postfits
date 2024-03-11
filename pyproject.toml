@@ -20,9 +20,10 @@ requires-python = ">=3.8"
 dependencies = [
   "typing_extensions",
   "typeguard",
+  "rich",
   "numpy",
   "uproot",
-  "mplhep",
+  "mplhep>=0.3.41",
   "hist",
   "scipy"
 ]

@@ -5,6 +5,7 @@ import logging
 import yaml
 import matplotlib
 from multiprocessing import Process
+import time
 import copy
 
 matplotlib.use("Agg")
@@ -14,6 +15,10 @@ import argparse
 from combine_postfits import plot, utils
 
 hep.style.use("CMS")
+
+import click
+import logging
+from rich.logging import RichHandler
 
 if __name__ == "__main__":
 
@@ -117,12 +122,20 @@ if __name__ == "__main__":
         log_level = logging.INFO
     if args.debug:
         log_level = logging.DEBUG
-    logging.basicConfig(level=log_level)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.basicConfig(
+        level=log_level,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])]
+    )
 
     if args.fit == "all":
         fit_types = ["prefit", "fit_s"]
     else:
         fit_types = [args.fit]
+    for fit in fit_types:
+        os.makedirs(f"{args.output_folder}/{fit}", exist_ok=True)
     if args.format == "both":
         format = ["png", "pdf"]
     else:
@@ -180,13 +193,15 @@ if __name__ == "__main__":
                 hep.cms.label("Private Work", data=not args.pseudo, ax=ax)
                 for fmt in format:
                     fig.savefig(
-                        f"{args.output_folder}/{channel}_{fit_type}.{fmt}", format=fmt
+                        f"{args.output_folder}/{fit_type}/{channel}_{fit_type}.{fmt}", format=fmt
                     )
                 
             p = Process(target=mod_plot)
             p.start()
             if not args.multiprocessing:
                 p.join()
+            else:
+                time.sleep(1)
             
             
             

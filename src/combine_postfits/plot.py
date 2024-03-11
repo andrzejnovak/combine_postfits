@@ -81,7 +81,6 @@ def plot(
         bkgs = []
     if project is None:
         project = []
-
     # Fetch hists
     channels = [fitDiag_uproot[f"{fit_shapes_name}/{cat}"] for cat in cats]
     hist_keys = [
@@ -89,11 +88,6 @@ def plot(
         for k in channels[0].keys()
         if "data" not in k and "covar" not in k
     ]
-    for key in sigs + bkgs + project:
-        if key not in hist_keys:
-            raise ValueError(
-                f"Hist '{key}' is missing. Available keys are: {hist_keys}"
-            )
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
         hist_keys, channels, restoreNorm=restoreNorm, style_dict=None,
@@ -102,6 +96,15 @@ def plot(
     tot = getha("total", channels, restoreNorm=restoreNorm)
     # Prepare merges
     hist_dict = merge_hists(hist_dict, merge)
+    _merged_away = []
+    for k, v in merge.items():
+        _merged_away += v
+    # Check if all available
+    for key in sigs + bkgs + project:
+        if key not in hist_dict.keys():
+            raise ValueError(
+                f"Hist '{key}' is missing. Available keys are: {hist_keys}"
+            )
 
     # Soft-fail on missing hist
     def hist_dict_fcn(name):
@@ -167,7 +170,7 @@ def plot(
     unused = [
         key
         for key in hist_keys
-        if key not in sigs + bkgs + project + [onto] and "total" not in key
+        if key not in sigs + bkgs + project + [onto] and "total" not in key and key not in _merged_away
     ]
     if len(unused) > 0:
         logging.warning(

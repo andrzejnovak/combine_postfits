@@ -4,6 +4,8 @@ import uproot
 import logging
 import yaml
 import matplotlib
+from multiprocessing import Process
+import copy
 
 matplotlib.use("Agg")
 import mplhep as hep
@@ -58,6 +60,31 @@ if __name__ == "__main__":
         help="Style file yaml e.g. `style.yml`",
     )
     parser.add_argument(
+        "--sigs",
+        default=None,
+        dest="sigs",
+        help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
+    )
+    parser.add_argument(
+        "--project-signals",
+        "--project_signals",
+        default=None,
+        dest="project_signals",
+        help="Comma-separated list of values of equal length with --sigs, e.g. `1,1`",
+    )
+    parser.add_argument(
+        "--bkgs",
+        default=None,
+        dest="bkgs",
+        help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
+    )
+    parser.add_argument(
+        "--onto",
+        default=None,
+        dest="onto",
+        help="Bkg to plot other processes onto, e.g. `qcd`.",
+    )
+    parser.add_argument(
         "-f",
         "--format",
         type=str,
@@ -79,6 +106,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     parser.add_argument("--debug", "-vv", action="store_true", help="Debug logging")
+    parser.add_argument("-p", action="store_true", dest='multiprocessing', help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.")
     args = parser.parse_args()
 
     os.makedirs(args.output_folder, exist_ok=True)
@@ -131,19 +159,35 @@ if __name__ == "__main__":
             c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
         ]
         for channel in channels:
-            fig, (ax, rax) = plot.plot(
-                fd,
-                fit_type,
-                cats=[channel],
-                restoreNorm=True,
-                clipx=True,
-                fitDiag_root=rfd,
-                style=style,
-                cat_info=1,
-            )
-            rax.set_xlabel(r"$m_{\tau\bar{\tau}}^{reg}$")
-            hep.cms.label("Private Work", data=not args.pseudo, ax=ax)
-            for fmt in format:
-                fig.savefig(
-                    f"{args.output_folder}/{channel}_{fit_type}.{fmt}", format=fmt
+            # Wrap it in a function to enable parallel processing
+            def mod_plot():
+                fig, (ax, rax) = plot.plot(
+                    fd,
+                    fit_type,
+                    sigs=args.sigs.split(",") if args.sigs else None,
+                    bkgs=args.bkgs.split(",") if args.bkgs else None,
+                    onto=args.onto,
+                    project_signal=[float(v) for v in args.project_signals.split(",")] if args.project_signals else None,
+                    cats=[channel],
+                    restoreNorm=True,
+                    clipx=True,
+                    fitDiag_root=rfd,
+                    style=style,
+                    cat_info=1,
+                    chi2=True,
                 )
+                rax.set_xlabel(r"$m_{\tau\bar{\tau}}^{reg}$")
+                hep.cms.label("Private Work", data=not args.pseudo, ax=ax)
+                for fmt in format:
+                    fig.savefig(
+                        f"{args.output_folder}/{channel}_{fit_type}.{fmt}", format=fmt
+                    )
+                
+            p = Process(target=mod_plot)
+            p.start()
+            if not args.multiprocessing:
+                p.join()
+            
+            
+            
+    

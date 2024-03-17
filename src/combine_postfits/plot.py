@@ -45,6 +45,7 @@ def plot(
     | None = None,  # Project (duplicate) some samples onto the x-axis for readability
     project_signal: list[float | int]
     | None = None,  # Plot projected total signal on x-axis, scale by `project_signal`
+    blind: bool = False,  # Blind data
     remove_tiny: bool
     | float
     | int
@@ -149,10 +150,11 @@ def plot(
         bkgs = default_bkgs
     if len(sigs) > 2:
         raise ValueErrors(
-            "Are you insane? More than 2 signal? Write your own plotter lol."
+            "Are you insane? More than 2 signals? Write your own plotter lol."
         )
     elif len(sigs) == 0:
         sigs = default_signal
+        logging.info(f"  Signal {default_signal[0]} picked automatically by matching to `total_signal`.")
     bkgs = [bkg for bkg in bkgs if bkg != onto and bkg not in sigs]
     # Remove negatives from backgrounds/stackable:
     sigs_ratio = sigs.copy()  # Allow negatives in ratio
@@ -218,9 +220,10 @@ def plot(
             histtype="fill",
             facecolor=["none", *[style[k]["color"] for k in bkgs + sigs]],
         )
-    hep.histplot(
-        data, ax=ax, label="data", xerr=True, histtype="errorbar", color="k", zorder=4
-    )
+    if not blind:
+        hep.histplot(
+            data, ax=ax, label="data", xerr=True, histtype="errorbar", color="k", zorder=4
+        )
 
     # Ploting projection
     if len(project) != 0:
@@ -285,22 +288,23 @@ def plot(
 
     #########
     # Subplot
-    rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
-    ## Plotting subplot
-    hep.histplot(
-        rh,
-        data.axes[0].edges,
-        ax=rax,
-        yerr=1,
-        histtype="errorbar",
-        color="k",
-        xerr=True,
-        zorder=4,
-    )
-    #     hep.histplot(tot_sig/np.sqrt(data.variances()), ax=rax,
-    #                  color=style['total_signal']['color'], lw=2,
-    #                  label='Signal',
-    #                 )
+    if not blind:
+        rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
+        ## Plotting subplot
+        hep.histplot(
+            rh,
+            data.axes[0].edges,
+            ax=rax,
+            yerr=1,
+            histtype="errorbar",
+            color="k",
+            xerr=True,
+            zorder=4,
+        )
+        #     hep.histplot(tot_sig/np.sqrt(data.variances()), ax=rax,
+        #                  color=style['total_signal']['color'], lw=2,
+        #                  label='Signal',
+        #                 )
     hep.histplot(
         [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_ratio],
         ax=rax,
@@ -315,7 +319,10 @@ def plot(
     )
     yerr = yerr_nom.copy()
     yerr[~np.isfinite(yerr_nom)] = 0
-    err_th = np.max([7, 1.5 * np.max(abs(np.r_[0.01, rh[np.isfinite(rh)]]))])
+    if 'rh' in locals():
+        err_th = np.max([7, 1.5 * np.max(abs(np.r_[0.01, rh[np.isfinite(rh)]]))])
+    else:
+        err_th = 7
     good_yerr_mask = yerr < err_th  # Data unc is 1 by definiton
     yerr[~good_yerr_mask] = 0
     hep.histplot(
@@ -338,13 +345,13 @@ def plot(
 
     # Axis limits
     if clipx:
-        _h, _bins = data.to_numpy()
+        _h, _bins = data.copy().to_numpy()
         _h += tot_bkg.to_numpy()[0]
         nonzero = _bins[:-1][_h > 0]
         ax.set_xlim(nonzero[0], nonzero[-1])
     else:
         ax.set_xlim(data.axes[0].edges[0], data.axes[0].edges[-1])
-
+        
     # Axis labels
     ax.set_xlabel(None)
     rax.set_xlabel(tot_bkg.axes[0].label)
@@ -353,6 +360,7 @@ def plot(
             _binwidth = f"{np.mean(data.axes[0].widths):.0f}"
         else:
             _binwidth = f"{stats.mode(np.mean(data.axes[0].widths)).mode:.0f}"
+            _binwidth = ""
             logging.warning(
                 "  Bin-width is not constant. Consider setting custom y-label"
             )
@@ -410,31 +418,34 @@ def plot(
             mu_strs = []
             for sig in sigs:
                 _r = get_fit_val(
-                    fitDiag_root, rmap[sig], fittype=fit_type, substitute=1.0
+                    fitDiag_root, rmap[sig], fittype=fit_type, substitute=None,
                 )
+                if _r is None:
+                    leg.set_title(title="Postfit", prop={"size": "small"})
+                    continue
                 _r = rf"{_r:.2f}"
                 _d, _u = get_fit_unc(
-                    fitDiag_root, rmap[sig], fittype=fit_type, substitute=1.0
+                    fitDiag_root, rmap[sig], fittype=fit_type, substitute=(0,0),
                 )
                 _d, _u = rf"{_d:.2f}", f"{_u:.2f}"
                 mu_strs.append(
                     r"$\mu_{%s}$ = " % style[sig]["label"].replace("$", "")
                     + r"${%s}_{%s}^{%s}$" % (_r, _d, _u)
                 )
-
-            fig.canvas.draw()
-            bbox = leg.get_window_extent().transformed(ax.transAxes.inverted())
-            x, y = bbox.xmin + bbox.width / 2, bbox.ymin
-            ax.text(
-                x,
-                y,
-                "  ".join(mu_strs),
-                fontsize="x-small",
-                ha="center",
-                va="top",
-                transform=ax.transAxes,
-            )
-            ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
+            if len(mu_strs) > 0:
+                fig.canvas.draw()
+                bbox = leg.get_window_extent().transformed(ax.transAxes.inverted())
+                x, y = bbox.xmin + bbox.width / 2, bbox.ymin
+                ax.text(
+                    x,
+                    y,
+                    "  ".join(mu_strs),
+                    fontsize="x-small",
+                    ha="center",
+                    va="top",
+                    transform=ax.transAxes,
+                )
+                ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
     if cat_info:
         from matplotlib.offsetbox import AnchoredText
@@ -450,14 +461,15 @@ def plot(
         hep.plot.yscale_anchored_text(ax)
 
     if chi2:
-        chi2_val = np.sum(
-            np.nan_to_num(
-                abs(data.values() - tot.values()) / data.variances(), posinf=0, neginf=0
-            )
-        )
+        chi2_raw =abs(data.values() - tot.values())**2 / data.values()
+        chi2_val = np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0))
+        mean_chi2 = chi2_val / np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0) != 0)
+        logging.debug(f"Chi2 ({cats[0]}): {chi2_val:.2f}")
+        logging.debug(f"Mean Chi2 - chi2/nbins ({cats[0]}): {mean_chi2:.2f}")
+
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            rf"$\chi^2$ = {chi2_val:.2f}",
+            r"$\overline{\chi^2}$ = "+f"{mean_chi2:.2f}",
             loc="upper left",  # pad=0.8,
             prop=dict(size="x-small", ha="center"),
             frameon=False,

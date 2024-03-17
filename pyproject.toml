@@ -3,6 +3,10 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+
+[project.scripts]
+combine_postfits = "combine_postfits.make_plots:main"
+
 [project]
 name = "combine_postfits"
 version = "0.1.0"

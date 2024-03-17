@@ -5,6 +5,7 @@ import numpy as np
 import hist
 from cycler import cycler
 from pkgutil import iter_modules
+from rich.pretty import pprint
 
 
 cmap6 = ["#5790fc", "#f89c20", "#e42536", "#964a8b", "#9c9ca1", "#7a21dd"]
@@ -89,7 +90,7 @@ def fill_colors(style, cmap=None, no_duplicates=True):
             pop_col = next(cycler_iter)
             counter += 1
             logging.info(
-                f"Key 'color' not found for sample '{key}'. Setting to: '{pop_col}'",
+                f'Key "color" not found for sample "{key}". Setting to: {pop_col}',
             )
             style[key]["color"] = pop_col["color"]
     if counter > len(cmap):
@@ -107,17 +108,19 @@ def fill_colors(style, cmap=None, no_duplicates=True):
     return style
 
 
-def make_style_dict_yaml(fitDiag, cmap="tab10"):
+def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
     style_base = {
-        "data": {"label": "Data", "color": "black", "hatch": None},
-        "total_signal": {"label": "Signal", "color": "#e42536", "hatch": "/////"},
-        "qcd": {"label": "QCD", "color": "#94a4a2", "hatch": None},
+        "data": {"label": "Data", "color": "black", "hatch": None, 'yield': 0},
+        "qcd": {"label": "QCD", "color": "#94a4a2", "hatch": None, 'yield': 0},
     }
 
+    fit_types = ["prefit", "fit_s", "fit_b"]
+    avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
+    avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
+    
     def get_samples_fitDiag(fitDiag):
         snames = []
-        fit_types = ["prefit", "fit_s", "fit_b"]
-        for fit in fit_types:
+        for fit in avail_fit_types:
             try:
                 for ch in [
                     ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0
@@ -128,19 +131,40 @@ def make_style_dict_yaml(fitDiag, cmap="tab10"):
         return sorted([k for k in list(set(snames)) if "covar" not in k])
 
     sample_keys = get_samples_fitDiag(fitDiag)
+    # Sort by yield
+    if sort:
+        yield_dict = {
+            k: sum(
+                [
+                    sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
+                    for fit in avail_fit_types
+                    for ch in avail_channels
+                    if hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist") and 'total' not in k # Sum only TH1s, data is black anyway
+                ]
+            )
+            for k in sample_keys
+        }
+        keys_sorted = [k for k, v in sorted(yield_dict.items(), key=lambda item: item[1], reverse=True)]    
+    else:
+        keys_sorted = sample_keys    
     # Fill dummy style dict
     style = style_base.copy()
-    for key in sample_keys:
+    for key in keys_sorted:
+        if key == 'data' or 'total' in key:   # Skip totals
+            continue
         if key not in style:
-            style[key] = {"label": key, "color": None, "hatch": None}
+            style[key] = {"label": key, "color": None, "hatch": None, 'yield': yield_dict[key]}
+    # Add total, total_signal, total_background at the end
+    for key in ['total', 'total_signal', 'total_background']:
+        style[key] = {"label": key, "color": None, "hatch": None, 'yield': yield_dict[key]}
 
     # Fill colors
     if cmap is None:
         colors = cmap
     # mpl maps
     elif cmap in plt.matplotlib.colormaps:
-        colors = plt.matplotlib.colormaps[cmap].resampled(len(sample_keys))(
-            range(len(sample_keys))
+        colors = plt.matplotlib.colormaps[cmap].resampled(len(keys_sorted))(
+            range(len(keys_sorted))
         )
     # metbrewer maps
     elif isinstance(cmap, str) and module_exists("met_brewer"):
@@ -148,7 +172,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10"):
 
         if cmap in met_brewer.MET_PALETTES:
             colors = met_brewer.met_brew(
-                name=cmap, n=len(sample_keys), brew_type="discrete"
+                name=cmap, n=len(keys_sorted), brew_type="discrete"
             )
         else:
             colors = None
@@ -173,14 +197,27 @@ def make_style_dict_yaml(fitDiag, cmap="tab10"):
                 )
     colors = [tuple(c) if isinstance(c, np.ndarray) else c for c in colors]
     style = fill_colors(style, cmap=colors, no_duplicates=True)
+    style = sort_by_yield(style, reverse=False)
     return style
 
+def sort_by_yield(style, reverse=True):
+    if 'yield' not in style['data']:
+        return style
+    sorted_keys = sorted(style, key=lambda k: style[k]['yield'], reverse=reverse)
+    out = {'data': style['data']}
+    for k in sorted_keys:
+        if k != 'data' and 'total' not in k:
+            out[k] = style[k]
+        if 'total' in k:
+            out[k] = style[k]
+    for k in out.keys():
+        del out[k]['yield']
+    return out
 
 def prep_yaml(style):
     style = clean_yaml(style)
     style = fill_colors(style, cmap=cmap10)
     return style
-
 
 # Formatting
 def format_legend(ax, ncols=2, handles_labels=None, **kwargs):
@@ -264,7 +301,7 @@ def tgasym_to_err(tgasym, restoreNorm=True):
 
 def tgasym_to_hist(tgasym, restoreNorm=True):
     y, bins, ylo, yhi = tgasym_to_err(tgasym, restoreNorm)
-    h = hist.new.Var(bins).Weight()
+    h = hist.new.Var(bins, flow=False).Weight()
     h.view().value = y
     h.view().variance = y
     return h

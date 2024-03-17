@@ -89,7 +89,10 @@ def plot(
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
-        hist_keys, channels, restoreNorm=restoreNorm, style_dict=None,
+        hist_keys,
+        channels,
+        restoreNorm=restoreNorm,
+        style_dict=None,
     )
     tot_bkg = getha("total_background", channels, restoreNorm=restoreNorm)
     tot = getha("total", channels, restoreNorm=restoreNorm)
@@ -152,7 +155,9 @@ def plot(
         )
     elif len(sigs) == 0:
         sigs = default_signal
-        logging.info(f"  Signal {default_signal[0]} picked automatically by matching to `total_signal`.")
+        logging.info(
+            f"  Signal {default_signal[0]} picked automatically by matching to `total_signal`."
+        )
     bkgs = [bkg for bkg in bkgs if bkg != onto and bkg not in sigs]
     # Remove negatives from backgrounds/stackable:
     sigs_ratio = sigs.copy()  # Allow negatives in ratio
@@ -170,7 +175,9 @@ def plot(
     unused = [
         key
         for key in hist_keys
-        if key not in sigs + bkgs + project + [onto] and "total" not in key and key not in _merged_away
+        if key not in sigs + bkgs + project + [onto]
+        and "total" not in key
+        and key not in _merged_away
     ]
     if len(unused) > 0:
         logging.warning(
@@ -220,7 +227,13 @@ def plot(
         )
     if not blind:
         hep.histplot(
-            data, ax=ax, label="data", xerr=True, histtype="errorbar", color="k", zorder=4
+            data,
+            ax=ax,
+            label="data",
+            xerr=True,
+            histtype="errorbar",
+            color="k",
+            zorder=4,
         )
 
     # Ploting projection
@@ -317,7 +330,7 @@ def plot(
     )
     yerr = yerr_nom.copy()
     yerr[~np.isfinite(yerr_nom)] = 0
-    if 'rh' in locals():
+    if "rh" in locals():
         err_th = np.max([7, 1.5 * np.max(abs(np.r_[0.01, rh[np.isfinite(rh)]]))])
     else:
         err_th = 7
@@ -349,7 +362,7 @@ def plot(
         ax.set_xlim(nonzero[0], nonzero[-1])
     else:
         ax.set_xlim(data.axes[0].edges[0], data.axes[0].edges[-1])
-        
+
     # Axis labels
     ax.set_xlabel(None)
     rax.set_xlabel(tot_bkg.axes[0].label)
@@ -416,14 +429,20 @@ def plot(
             mu_strs = []
             for sig in sigs:
                 _r = get_fit_val(
-                    fitDiag_root, rmap[sig], fittype=fit_type, substitute=None,
+                    fitDiag_root,
+                    rmap[sig],
+                    fittype=fit_type,
+                    substitute=None,
                 )
                 if _r is None:
                     leg.set_title(title="Postfit", prop={"size": "small"})
                     continue
                 _r = rf"{_r:.2f}"
                 _d, _u = get_fit_unc(
-                    fitDiag_root, rmap[sig], fittype=fit_type, substitute=(0,0),
+                    fitDiag_root,
+                    rmap[sig],
+                    fittype=fit_type,
+                    substitute=(0, 0),
                 )
                 _d, _u = rf"{_d:.2f}", f"{_u:.2f}"
                 mu_strs.append(
@@ -459,7 +478,7 @@ def plot(
         hep.plot.yscale_anchored_text(ax)
 
     if chi2:
-        chi2_raw =abs(data.values() - tot.values())**2 / data.values()
+        chi2_raw = abs(data.values() - tot.values()) ** 2 / data.values()
         chi2_val = np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0))
         mean_chi2 = chi2_val / np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0) != 0)
         logging.debug(f"Chi2 ({cats[0]}): {chi2_val:.2f}")
@@ -467,7 +486,7 @@ def plot(
 
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            r"$\overline{\chi^2}$ = "+f"{mean_chi2:.2f}",
+            r"$\overline{\chi^2}$ = " + f"{mean_chi2:.2f}",
             loc="upper left",  # pad=0.8,
             prop=dict(size="x-small", ha="center"),
             frameon=False,

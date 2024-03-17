@@ -15,10 +15,18 @@ from combine_postfits import plot, utils
 
 import click
 from rich.logging import RichHandler
-from rich.progress import Progress, TextColumn, BarColumn, MofNCompleteColumn, TimeRemainingColumn, TimeElapsedColumn
+from rich.progress import (
+    Progress,
+    TextColumn,
+    BarColumn,
+    MofNCompleteColumn,
+    TimeRemainingColumn,
+    TimeElapsedColumn,
+)
 from rich.prompt import Confirm
 
 hep.style.use("CMS")
+
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -29,6 +37,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -102,9 +111,10 @@ def main():
         default=None,
         help="Name of `cmap` to fill colors in `style.yml` from. Eg.: Tiepolo;Renoir;tab10",
     )
-    parser.add_argument("--clipx",
+    parser.add_argument(
+        "--clipx",
         type=str2bool,
-        default='True',
+        default="True",
         choices={True, False},
         help="Clip x-axis to range of data",
     )
@@ -141,7 +151,7 @@ def main():
     )
     parser.add_argument(
         "--xlabel",
-        default=r'$m_{\tau\bar{\tau}}^{reg}$',
+        default=r"$m_{\tau\bar{\tau}}^{reg}$",
         type=str,
         help="Plot x-label. If left `None` will read from combine. When using latex enclose string as 'str'.",
     )
@@ -161,7 +171,12 @@ def main():
     # Debug
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     parser.add_argument("--debug", "-vv", action="store_true", help="Debug logging")
-    parser.add_argument("-p", action="store_true", dest='multiprocessing', help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.")
+    parser.add_argument(
+        "-p",
+        action="store_true",
+        dest="multiprocessing",
+        help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_folder, exist_ok=True)
@@ -177,11 +192,13 @@ def main():
         level=log_level,
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])]
+        handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
     )
     if not args.pseudo:
-        unblind_conf = Confirm.ask("Option `--blind` is not set, while plotting with `--data`. "
-                                   "Are you sure you want to unblind?")
+        unblind_conf = Confirm.ask(
+            "Option `--blind` is not set, while plotting with `--data`. "
+            "Are you sure you want to unblind?"
+        )
         assert unblind_conf, "Unblind option not confirmed. Exiting."
 
     if args.fit == "all":
@@ -225,7 +242,7 @@ def main():
         blind_cats = args.blind.split(",") if "," in args.blind else [args.blind]
     else:
         blind_cats = []
-        
+
     # Get types/cats/blinds unwrapped
     all_channels = []
     all_blinds = []
@@ -250,20 +267,32 @@ def main():
                     savenames.append(mcat)
             else:
                 channels = [[c] for c in args.cats.split(",")]
-                blinds = [True if c in blind_cats else False for c in args.cats.split(",")]
+                blinds = [
+                    True if c in blind_cats else False for c in args.cats.split(",")
+                ]
                 savenames = args.cats.split(",")
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
-        all_types.extend([fit_type] * len(channels))   
+        all_types.extend([fit_type] * len(channels))
         all_savenames.extend(savenames)
-        
+
     _procs = []
-    with Progress(TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), TimeRemainingColumn(), TimeElapsedColumn(),) as progress:
-        prog_str = "[red]Plotting (parallel): " if args.multiprocessing else "[red]Plotting: "
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TimeRemainingColumn(),
+        TimeElapsedColumn(),
+    ) as progress:
+        prog_str = (
+            "[red]Plotting (parallel): " if args.multiprocessing else "[red]Plotting: "
+        )
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
         semaphore = Semaphore(20 if args.multiprocessing else 0)
-        for fittype, channel, blind, sname in zip(all_types, all_channels, all_blinds, all_savenames):
+        for fittype, channel, blind, sname in zip(
+            all_types, all_channels, all_blinds, all_savenames
+        ):
             # Wrap it in a function to enable parallel processing
             def mod_plot(semaphore=None):
                 fig, (ax, rax) = plot.plot(
@@ -272,7 +301,9 @@ def main():
                     sigs=args.sigs.split(",") if args.sigs else None,
                     bkgs=args.bkgs.split(",") if args.bkgs else None,
                     onto=args.onto,
-                    project_signal=[float(v) for v in args.project_signals.split(",")] if args.project_signals else None,
+                    project_signal=[float(v) for v in args.project_signals.split(",")]
+                    if args.project_signals
+                    else None,
                     blind=blind,
                     cats=channel,
                     restoreNorm=True,
@@ -286,17 +317,26 @@ def main():
                     rax.set_xlabel(args.xlabel)
                 if args.ylabel is not None:
                     rax.set_ylabel(args.xlabel)
-                hep.cms.label(args.cmslabel, data=not args.pseudo, ax=ax, lumi=args.lumi, pub=args.pub, year=args.year) 
+                hep.cms.label(
+                    args.cmslabel,
+                    data=not args.pseudo,
+                    ax=ax,
+                    lumi=args.lumi,
+                    pub=args.pub,
+                    year=args.year,
+                )
                 for fmt in format:
                     fig.savefig(
-                        f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}", format=fmt, dpi=300,
+                        f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
+                        format=fmt,
+                        dpi=300,
                     )
                 if semaphore is not None:
                     semaphore.release()
-            
+
             if args.multiprocessing:
                 semaphore.acquire()
-                p = Process(target=mod_plot, args=(semaphore, ))
+                p = Process(target=mod_plot, args=(semaphore,))
                 _procs.append(p)
                 p.start()
                 time.sleep(0.5)
@@ -306,10 +346,13 @@ def main():
 
         if args.multiprocessing:
             while sum([p.is_alive() for p in _procs]) > 0:
-                n_running = sum([p.is_alive() for p in _procs])    
-                progress.update(prog_plotting, completed=len(_procs) - n_running, refresh=True)
+                n_running = sum([p.is_alive() for p in _procs])
+                progress.update(
+                    prog_plotting, completed=len(_procs) - n_running, refresh=True
+                )
                 time.sleep(0.1)
         progress.update(prog_plotting, completed=len(_procs), refresh=True)
+
 
 if __name__ == "__main__":
     main()

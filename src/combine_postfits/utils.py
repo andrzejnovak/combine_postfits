@@ -109,14 +109,16 @@ def fill_colors(style, cmap=None, no_duplicates=True):
 
 def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
     style_base = {
-        "data": {"label": "Data", "color": "black", "hatch": None, 'yield': 0},
-        "qcd": {"label": "QCD", "color": "#94a4a2", "hatch": None, 'yield': 0},
+        "data": {"label": "Data", "color": "black", "hatch": None, "yield": 0},
+        "qcd": {"label": "QCD", "color": "#94a4a2", "hatch": None, "yield": 0},
     }
 
     fit_types = ["prefit", "fit_s", "fit_b"]
     avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
-    avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
-    
+    avail_channels = [
+        ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0
+    ]
+
     def get_samples_fitDiag(fitDiag):
         snames = []
         for fit in avail_fit_types:
@@ -138,24 +140,40 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
                     sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
                     for fit in avail_fit_types
                     for ch in avail_channels
-                    if hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist") and 'total' not in k # Sum only TH1s, data is black anyway
+                    if hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
+                    and "total" not in k  # Sum only TH1s, data is black anyway
                 ]
             )
             for k in sample_keys
         }
-        keys_sorted = [k for k, v in sorted(yield_dict.items(), key=lambda item: item[1], reverse=True)]    
+        keys_sorted = [
+            k
+            for k, v in sorted(
+                yield_dict.items(), key=lambda item: item[1], reverse=True
+            )
+        ]
     else:
-        keys_sorted = sample_keys    
+        keys_sorted = sample_keys
     # Fill dummy style dict
     style = style_base.copy()
     for key in keys_sorted:
-        if key == 'data' or 'total' in key:   # Skip totals
+        if key == "data" or "total" in key:  # Skip totals
             continue
         if key not in style:
-            style[key] = {"label": key, "color": None, "hatch": None, 'yield': yield_dict[key]}
+            style[key] = {
+                "label": key,
+                "color": None,
+                "hatch": None,
+                "yield": yield_dict[key],
+            }
     # Add total, total_signal, total_background at the end
-    for key in ['total', 'total_signal', 'total_background']:
-        style[key] = {"label": key, "color": None, "hatch": None, 'yield': yield_dict[key]}
+    for key in ["total", "total_signal", "total_background"]:
+        style[key] = {
+            "label": key,
+            "color": None,
+            "hatch": None,
+            "yield": yield_dict[key],
+        }
 
     # Fill colors
     if cmap is None:
@@ -199,24 +217,27 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
     style = sort_by_yield(style, reverse=False)
     return style
 
+
 def sort_by_yield(style, reverse=True):
-    if 'yield' not in style['data']:
+    if "yield" not in style["data"]:
         return style
-    sorted_keys = sorted(style, key=lambda k: style[k]['yield'], reverse=reverse)
-    out = {'data': style['data']}
+    sorted_keys = sorted(style, key=lambda k: style[k]["yield"], reverse=reverse)
+    out = {"data": style["data"]}
     for k in sorted_keys:
-        if k != 'data' and 'total' not in k:
+        if k != "data" and "total" not in k:
             out[k] = style[k]
-        if 'total' in k:
+        if "total" in k:
             out[k] = style[k]
     for k in out.keys():
-        del out[k]['yield']
+        del out[k]["yield"]
     return out
+
 
 def prep_yaml(style):
     style = clean_yaml(style)
     style = fill_colors(style, cmap=cmap10)
     return style
+
 
 # Formatting
 def format_legend(ax, ncols=2, handles_labels=None, **kwargs):

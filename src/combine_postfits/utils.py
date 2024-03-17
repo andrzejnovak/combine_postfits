@@ -5,7 +5,6 @@ import numpy as np
 import hist
 from cycler import cycler
 from pkgutil import iter_modules
-from rich.pretty import pprint
 
 
 cmap6 = ["#5790fc", "#f89c20", "#e42536", "#964a8b", "#9c9ca1", "#7a21dd"]
@@ -126,7 +125,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
                     ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0
                 ]:
                     snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
-            except:
+            except KeyError:
                 print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
         return sorted([k for k in list(set(snames)) if "covar" not in k])
 

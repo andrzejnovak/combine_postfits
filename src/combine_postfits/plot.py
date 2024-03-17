@@ -1,5 +1,3 @@
-import typing
-import typing_extensions
 from collections import defaultdict
 import matplotlib
 
@@ -149,7 +147,7 @@ def plot(
     if len(bkgs) == 0:
         bkgs = default_bkgs
     if len(sigs) > 2:
-        raise ValueErrors(
+        raise ValueError(
             "Are you insane? More than 2 signals? Write your own plotter lol."
         )
     elif len(sigs) == 0:

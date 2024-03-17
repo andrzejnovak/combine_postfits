@@ -5,9 +5,7 @@ import logging
 import yaml
 import matplotlib
 from multiprocessing import Process, Semaphore
-import tqdm
 import time
-import copy
 
 matplotlib.use("Agg")
 import mplhep as hep
@@ -16,7 +14,6 @@ import argparse
 from combine_postfits import plot, utils
 
 import click
-import logging
 from rich.logging import RichHandler
 from rich.progress import Progress, TextColumn, BarColumn, MofNCompleteColumn, TimeRemainingColumn, TimeElapsedColumn
 from rich.prompt import Confirm
@@ -263,7 +260,7 @@ def main():
         
     _procs = []
     with Progress(TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), TimeRemainingColumn(), TimeElapsedColumn(),) as progress:
-        prog_str = f"[red]Plotting (parallel): " if args.multiprocessing else f"[red]Plotting: "
+        prog_str = "[red]Plotting (parallel): " if args.multiprocessing else "[red]Plotting: "
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
         semaphore = Semaphore(20 if args.multiprocessing else 0)
         for fittype, channel, blind, sname in zip(all_types, all_channels, all_blinds, all_savenames):
@@ -292,7 +289,7 @@ def main():
                 hep.cms.label(args.cmslabel, data=not args.pseudo, ax=ax, lumi=args.lumi, pub=args.pub, year=args.year) 
                 for fmt in format:
                     fig.savefig(
-                        f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}", format=fmt
+                        f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}", format=fmt, dpi=300,
                     )
                 if semaphore is not None:
                     semaphore.release()

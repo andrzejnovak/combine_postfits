@@ -3,6 +3,8 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.force-include]
+"make_plots.py" = "src/combine_postfits/make_plots.py"
 
 [project.scripts]
 combine_postfits = "combine_postfits.make_plots:main"

@@ -19,6 +19,7 @@ import click
 import logging
 from rich.logging import RichHandler
 from rich.progress import Progress, TextColumn, BarColumn, MofNCompleteColumn, TimeRemainingColumn, TimeElapsedColumn
+from rich.prompt import Confirm
 
 hep.style.use("CMS")
 
@@ -181,6 +182,10 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])]
     )
+    if not args.pseudo:
+        unblind_conf = Confirm.ask("Option `--blind` is not set, while plotting with `--data`. "
+                                   "Are you sure you want to unblind?")
+        assert unblind_conf, "Unblind option not confirmed. Exiting."
 
     if args.fit == "all":
         fit_types = ["prefit", "fit_s"]

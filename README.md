@@ -16,6 +16,7 @@ Example script to be modified as needed can be found in `make_plots.py. Run as:
 
 If you install non-editable version `pip install .` You can access it as `combine_postfits `
 
+```
 usage: combine_postfits [-h] [-i INPUT] [--fit {fit_s,prefit,all}] [-o OUTPUT_FOLDER] [--cats CATS] [--sigs SIGS] [--project-signals PROJECT_SIGNALS] [--bkgs BKGS] [--onto ONTO] [-f {both,png,pdf}] [-s STYLE] [--cmap CMAP] [--clipx {False,True}] (--data | --MC | --toys)
                         [--blind BLIND] [--year {,2018,2017,2016}] [--lumi LUMI] [--pub PUB] [--xlabel XLABEL] [--ylabel YLABEL] [--cmslabel CMSLABEL] [--verbose] [--debug] [-p]
 
@@ -53,3 +54,4 @@ options:
   --verbose, -v         Verbose logging
   --debug, -vv          Debug logging
   -p                    Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.
+  ```

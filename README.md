@@ -14,7 +14,7 @@ Example script to be modified as needed can be found in `make_plots.py. Run as:
  python make_plots.py -i hadelModel_m125/fitDiagnosticsTest.root -v --MC --style style_jeff.yml
 ```
 
-If you install non-editable version `pip install .` You can access it as `combine_postfits `
+If you install the non-editable version `pip install .` You can access it as `combine_postfits `
 
 ```
 usage: combine_postfits [-h] [-i INPUT] [--fit {fit_s,prefit,all}] [-o OUTPUT_FOLDER] [--cats CATS] [--sigs SIGS] [--project-signals PROJECT_SIGNALS] [--bkgs BKGS] [--onto ONTO] [-f {both,png,pdf}] [-s STYLE] [--cmap CMAP] [--clipx {False,True}] (--data | --MC | --toys)

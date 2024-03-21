@@ -109,8 +109,27 @@ def plot(
             )
 
     # Soft-fail on missing hist
-    def hist_dict_fcn(name):
-        return hist_dict[name]
+    def hist_dict_fcn(name, raw=False):
+        _hobj = hist_dict[name].copy()
+        if raw:
+            return _hobj
+        # Convert zeros to nans for plotting (lw>0)
+        if np.any(_hobj.values() < 0):  # Flip logic for all negative (helps in ratio plot)
+            _th = 0.05 * np.min(_hobj.values())
+            non_zero_indices = np.where(_hobj.values() < _th)[0]
+            if non_zero_indices.size > 0:
+                _hobj.view().value[:non_zero_indices[0]] = np.nan
+            if non_zero_indices.size > 0:
+                _hobj.view().value[non_zero_indices[-1] + 1:] = np.nan
+            return _hobj
+        else:
+            _th = 0.02 * np.max(_hobj.values())
+            non_zero_indices = np.where(_hobj.values() > _th)[0]
+            if non_zero_indices.size > 0:
+                _hobj.view().value[:non_zero_indices[0]] = np.nan
+            if non_zero_indices.size > 0:
+                _hobj.view().value[non_zero_indices[-1] + 1:] = np.nan
+            return _hobj
 
     # Remove tiny
     if remove_tiny:
@@ -154,21 +173,30 @@ def plot(
             "Are you insane? More than 2 signals? Write your own plotter lol."
         )
     elif len(sigs) == 0:
-        sigs = default_signal
-        logging.info(
-            f"  Signal {default_signal[0]} picked automatically by matching to `total_signal`."
-        )
+        if len(default_signal) == 1:
+            sigs = default_signal
+            logging.info(
+                f"  Signal {default_signal[0]} picked automatically by matching to `total_signal`."
+            )
+        else:
+            raise ValueError(
+                f"No default signal was found. Specify signal samples with `--sigs`. Choices are: {hist_keys}"
+            )
     bkgs = [bkg for bkg in bkgs if bkg != onto and bkg not in sigs]
     # Remove negatives from backgrounds/stackable:
-    sigs_ratio = sigs.copy()  # Allow negatives in ratio
-    for sg in [sigs, bkgs]:
-        for key in sg:
-            if np.any(hist_dict_fcn(key).values() < 0):
+    sigs_original = sigs.copy()  # Allow negatives in ratio
+    _sigs, _bkgs = [], []
+    for list_in, list_out in zip([sigs, bkgs], [_sigs, _bkgs]):
+        for key in list_in:
+            if np.any(hist_dict_fcn(key, raw=True).values() < 0):
                 logging.warning(
                     f"  Hist {key} has negative values and will not be show in the stack"
                 )
                 logging.debug(f"  Hist {key}: {hist_dict_fcn(key).values()}")
-                sg.remove(key)
+            else:
+                list_out.append(key)
+    sigs = _sigs
+    bkgs = _bkgs
     logging.info(f"  Signals: {','.join(sigs)}.")
     logging.info(f"  Backgrounds: {','.join(bkgs)}.")
     logging.info(f"  Onto bkg: {onto}.")
@@ -211,19 +239,27 @@ def plot(
         hep.histplot(
             hist_dict_fcn(onto),
             ax=ax,
-            label="qcd",
+            label=onto,
             yerr=False,  # facecolor='none',
             histtype="step",
-            color=style["qcd"]["color"],  # hatch=style['qcd']['hatch'],
+            color=style[onto]["color"],  hatch=style[onto]['hatch'],
             lw=2,
+            zorder=4,
         )
+        _hatch = [None, *[style[k]["hatch"] for k in bkgs + sigs]]
+        _edgecolor = [style[k]["color"] if h not in ["none", None] else None for k, h in zip([onto]+bkgs + sigs, _hatch)]
+        _facecolor = ["none" if h not in ["none", None] or k == onto else style[k]["color"] for k, h in zip([onto]+bkgs + sigs, _hatch)]
+        _linewidth = [2]+[2 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])]      
         hep.histplot(
             [hist_dict[onto], *[hist_dict_fcn(k) for k in bkgs + sigs]],
             ax=ax,
             label=["_", *(bkgs + sigs)],
             stack=True,
             histtype="fill",
-            facecolor=["none", *[style[k]["color"] for k in bkgs + sigs]],
+            facecolor=_facecolor,
+            edgecolor=_edgecolor,
+            hatch=_hatch,
+            linewidth=_linewidth,
         )
     if not blind:
         hep.histplot(
@@ -250,17 +286,19 @@ def plot(
     # Project signal
     if rmap is None:
         if len(sigs) == 1:
-            rmap = {sigs[0]: "r"}
+            rmap = {sigs_original[0]: "r"}
     if project_signal is not None:
-        _rs = dict(zip(sigs, [1] * len(sigs)))
-        if fitDiag_root is None and "prefit" not in fit_type:
+        _rs = dict(zip(sigs_original, [1] * len(sigs_original)))
+        if fit_type == 'prefit':
+            pass
+        elif fitDiag_root is None:
             logging.warning(
                 "Kwarg `fitDiag_root` was not passed. Postfit signal strengths are unavailable. "
                 "Kwarg `project_signal` will be scaling the postfit distribution: `nominal * r * project_signal`. "
                 "When `fitDiag_root` is available, signal strength gets factored out resulting in: `nominal * project_signal`."
             )
         else:
-            if fitDiag_root is not None and rmap is None:
+            if rmap is None:
                 raise ValueError(
                     "Cannot infer sample:poi mapping for more than 1 signal. Pass e.g. "
                     "rmap={'hbb': 'r', 'hcc':'r2'}"
@@ -273,12 +311,12 @@ def plot(
                     for sig in rmap
                 }
         sig_dicts = defaultdict(lambda: 1)
-        for sig, proj in zip(sigs, project_signal):
+        for sig, proj in zip(sigs_original, project_signal):
             sig_dicts[sig] = proj
         logging.info(
             f"  Projecting signal on x-axis: {'; '.join([f'{k}:{v:.2f}' for k, v in _rs.items()])}"
         )
-        for sig in sigs:
+        for sig in sigs_original:
             _scaled_sig = hist_dict_fcn(sig) * sig_dicts[sig] / _rs[sig]
             _p_label = (
                 style[sig]["label"]
@@ -312,17 +350,21 @@ def plot(
             xerr=True,
             zorder=4,
         )
-        #     hep.histplot(tot_sig/np.sqrt(data.variances()), ax=rax,
-        #                  color=style['total_signal']['color'], lw=2,
-        #                  label='Signal',
-        #                 )
+
+    _hatch = [style[sig]["hatch"] for sig in sigs_original]
+    _edgecolor = [style[k]["color"] if h not in ["none", None] else "none" for k, h in zip(sigs_original, _hatch)]
+    _facecolor = ["none" if h not in ["none", None] else style[k]["color"] for k, h in zip(sigs_original, _hatch)]
+    _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
     hep.histplot(
-        [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_ratio],
+        [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_original],
         ax=rax,
-        color=[style[sig]["color"] for sig in sigs_ratio],
+        facecolor=_facecolor,
+        edgecolor=_edgecolor,
+        hatch=_hatch,
+        lw=_lw,
         stack=True,
         histtype="fill",
-        label=[style[sig]["label"] for sig in sigs_ratio],
+        label=[style[sig]["label"] for sig in sigs_original],
     )
     ## Bkg Unc
     yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(
@@ -380,19 +422,8 @@ def plot(
         ax.set_ylabel("Events / GeV")
 
     # Ratio
-    rax.legend(
-        loc="upper right",
-        ncol=3,
-        markerscale=0.8,
-        fontsize="small",
-        labelspacing=0.4,
-        columnspacing=1.5,
-    )
-    #     handles, labels = rax.get_legend_handles_labels()
-    #     rax.legend(reversed(handles), reversed(labels), loc='upper right', ncol=2)
     limlo, limhi = rax.get_ylim()
     rax.set_ylim(np.min([-2, limlo]), np.max([2, limhi * 1.8]))
-    hep.yscale_legend(rax)
     rax.axhline(0, color="gray", ls="--")
     rax.set_ylabel(r"$\frac{Data-Bkg}{\sigma_{Data}}$", y=0.5)
 
@@ -405,13 +436,14 @@ def plot(
     handles, labels = ax.get_legend_handles_labels()
     handles = [handles[i] for i in order]
     labels = [style[labels[i]]["label"] for i in order]
+    _legend_fontsize = "small" if len(labels) <= 8 else "x-small"
     leg = format_legend(
         ax,
         ncols=2,
         handles_labels=(handles, labels),
         bbox_to_anchor=(1, 1),
         markerscale=0.8,
-        fontsize="small",
+        fontsize=_legend_fontsize,
         labelspacing=0.4,
         columnspacing=1.5,
     )
@@ -427,7 +459,7 @@ def plot(
             leg.set_title(title=None, prop={"size": "small"})
             fig.canvas.draw()
             mu_strs = []
-            for sig in sigs:
+            for sig in sigs_original:
                 _r = get_fit_val(
                     fitDiag_root,
                     rmap[sig],
@@ -457,12 +489,25 @@ def plot(
                     x,
                     y,
                     "  ".join(mu_strs),
-                    fontsize="x-small",
+                    fontsize="xx-small",
                     ha="center",
                     va="top",
                     transform=ax.transAxes,
                 )
                 ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
+         
+    # Ratio legend       
+    rax.legend(
+        loc="upper right",
+        ncol=3,
+        markerscale=0.8,
+        fontsize=_legend_fontsize,
+        labelspacing=0.4,
+        columnspacing=1.5,
+    )
+    hep.yscale_legend(rax)
+    #     handles, labels = rax.get_legend_handles_labels()
+    #     rax.legend(reversed(handles), reversed(labels), loc='upper right', ncol=2)
 
     if cat_info:
         from matplotlib.offsetbox import AnchoredText
@@ -493,5 +538,7 @@ def plot(
         )
         rax.add_artist(at)
         hep.plot.yscale_anchored_text(rax)
+        
+    ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
     return fig, (ax, rax)

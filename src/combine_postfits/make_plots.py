@@ -3,6 +3,7 @@ import ROOT as r
 import uproot
 import logging
 import yaml
+import json
 import matplotlib
 from multiprocessing import Process, Semaphore
 import time
@@ -84,6 +85,13 @@ def main():
         help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
     )
     parser.add_argument(
+        "--rmap",
+        default=None,
+        dest="rmap",
+        type=json.loads,
+        help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
+    )
+    parser.add_argument(
         "--onto",
         default=None,
         dest="onto",
@@ -130,6 +138,7 @@ def main():
         default=None,
         help="Category to blind data (not plotted), e.g. `cat1`",
     )
+    parser.add_argument("--unblind", action="store_true", dest="unblind")
     parser.add_argument(
         "--year",
         default=None,
@@ -194,7 +203,7 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
     )
-    if not args.pseudo:
+    if not args.pseudo and not args.unblind:
         unblind_conf = Confirm.ask(
             "Option `--blind` is not set, while plotting with `--data`. "
             "Are you sure you want to unblind?"
@@ -304,6 +313,7 @@ def main():
                     project_signal=[float(v) for v in args.project_signals.split(",")]
                     if args.project_signals
                     else None,
+                    rmap=args.rmap,
                     blind=blind,
                     cats=channel,
                     restoreNorm=True,

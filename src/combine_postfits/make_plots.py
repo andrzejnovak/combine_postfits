@@ -1,5 +1,6 @@
 import os
 import ROOT as r
+import numpy as np
 import uproot
 import logging
 import yaml
@@ -38,7 +39,25 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
+    
+    
+def sci_notation(number, sig_fig=1, no_zero=False):
+    ret_string = "{0:.{1:d}e}".format(number, sig_fig)
+    a, b = ret_string.split("e")
+    b = int(b)
+    if float(a) == 0:
+        if no_zero:
+            return "\ "
+        else:
+            return "0"
+    elif float(a) == 1:
+        return "10^{"+str(b)+"}"
+    else:
+        return a + "\,x\,"+"10^{"+str(b)+"}"
 
+def get_digits(number):
+    before, _, after = np.round(number, 10).astype(str).partition('.')
+    return len(before), len(after)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -88,8 +107,8 @@ def main():
         "--rmap",
         default=None,
         dest="rmap",
-        type=json.loads,
-        help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
+        # type=json.loads,
+        help="A dict-like string e.g. `hbb:r_q,htt:r_t`",
     )
     parser.add_argument(
         "--onto",
@@ -160,9 +179,9 @@ def main():
     )
     parser.add_argument(
         "--xlabel",
-        default=r"$m_{\tau\bar{\tau}}^{reg}$",
+        default=None,
         type=str,
-        help="Plot x-label. If left `None` will read from combine. When using latex enclose string as 'str'.",
+        help="Plot x-label eg `$m_{\tau\bar{\tau}}^{reg}$`. If left `None` will read from combine. When using latex enclose string as 'str'.",
     )
     parser.add_argument(
         "--ylabel",
@@ -170,6 +189,13 @@ def main():
         type=str,
         help="Plot y-label. If left `None` will read from combine. When using latex enclose string as 'str'.",
     )
+    parser.add_argument(
+        "--no_zero",
+        type=str2bool,
+        default="False",
+        choices={True, False},
+        help="Hide zeroth tick on the y-axis.",
+    )    
     parser.add_argument(
         "--cmslabel",
         default="Private Work",
@@ -206,7 +232,7 @@ def main():
     if not args.pseudo and not args.unblind:
         unblind_conf = Confirm.ask(
             "Option `--blind` is not set, while plotting with `--data`. "
-            "Are you sure you want to unblind?"
+            "Are you sure you want to unblind? (pass `--unblind` to suppress this prompt)"
         )
         assert unblind_conf, "Unblind option not confirmed. Exiting."
 
@@ -251,6 +277,13 @@ def main():
         blind_cats = args.blind.split(",") if "," in args.blind else [args.blind]
     else:
         blind_cats = []
+    
+    # Parse rmap
+    if args.rmap is not None:
+        kvs = args.rmap.split(",")
+        rmap = {kv.split(":")[0]:kv.split(":")[1] for kv in kvs}
+    else:
+        rmap = None
 
     # Get types/cats/blinds unwrapped
     all_channels = []
@@ -313,7 +346,7 @@ def main():
                     project_signal=[float(v) for v in args.project_signals.split(",")]
                     if args.project_signals
                     else None,
-                    rmap=args.rmap,
+                    rmap=rmap,
                     blind=blind,
                     cats=channel,
                     restoreNorm=True,
@@ -323,6 +356,7 @@ def main():
                     cat_info=1,
                     chi2=True,
                 )
+                # Styling
                 if args.xlabel is not None:
                     rax.set_xlabel(args.xlabel)
                 if args.ylabel is not None:
@@ -335,11 +369,26 @@ def main():
                     pub=args.pub,
                     year=args.year,
                 )
+                
+                # Sci notat
+                leading_dig_max, decimal_dig_max = 0, 0
+                for tick in ax.get_yticks():
+                    leading_dig_max = max(leading_dig_max, get_digits(tick)[0])
+                    decimal_dig_max = max(decimal_dig_max, get_digits(tick)[1])
+                if (leading_dig_max > 3) or (decimal_dig_max > 3):
+                    def g(x, pos):
+                        return fr"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
+
+                    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(g))
+
+                # Save                
                 for fmt in format:
                     fig.savefig(
                         f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,
                         dpi=300,
+                        bbox_inches="tight",
+                        transparent=True,
                     )
                 if semaphore is not None:
                     semaphore.release()
@@ -349,7 +398,7 @@ def main():
                 p = Process(target=mod_plot, args=(semaphore,))
                 _procs.append(p)
                 p.start()
-                time.sleep(0.5)
+                time.sleep(0.1)
             else:
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)

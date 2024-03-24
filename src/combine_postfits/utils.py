@@ -292,6 +292,7 @@ def get_fit_val(fitDiag, val, fittype="fit_s", substitute=1.0):
     if val in fitDiag.Get(fittype).floatParsFinal().contentsString().split(","):
         return fitDiag.Get(fittype).floatParsFinal().find(val).getVal()
     else:
+        logging.warning(f"Parameter {val} not found in fitDiag. Returning {substitute}")
         return substitute
 
 
@@ -300,8 +301,12 @@ def get_fit_unc(fitDiag, val, fittype="fit_s", substitute=(0, 0)):
         return substitute
     if val in fitDiag.Get(fittype).floatParsFinal().contentsString().split(","):
         rval = fitDiag.Get(fittype).floatParsFinal().find(val)
-        return (abs(rval.getAsymErrorLo()), rval.getAsymErrorHi())
+        if rval.hasAsymError():
+            return (abs(rval.getAsymErrorLo()), rval.getAsymErrorHi())
+        else:
+            return (rval.getErrorLo(), rval.getErrorHi())
     else:
+        logging.warning(f"Parameter {val} not found in fitDiag. Returning {substitute}")
         return substitute
 
 

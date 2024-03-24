@@ -121,14 +121,24 @@ def plot(
                 _hobj.view().value[:non_zero_indices[0]] = np.nan
             if non_zero_indices.size > 0:
                 _hobj.view().value[non_zero_indices[-1] + 1:] = np.nan
+            # logging.debug(
+            #         f"  Hist {name} had low values set to NaNs: {_hobj.values()}."
+            #     )
             return _hobj
         else:
-            _th = 0.02 * np.max(_hobj.values())
+            # logging.debug(
+            #         f"  Hist '{name}' has values: {_hobj.values()}."
+            #     )
+            _th = 0.1 * np.max(_hobj.values())
             non_zero_indices = np.where(_hobj.values() > _th)[0]
             if non_zero_indices.size > 0:
                 _hobj.view().value[:non_zero_indices[0]] = np.nan
             if non_zero_indices.size > 0:
                 _hobj.view().value[non_zero_indices[-1] + 1:] = np.nan
+            # if len(non_zero_indices) != len(_hobj.values()):
+            #     logging.debug(
+            #         f"  Hist '{name}' had low values set to NaNs: {_hobj.values()}."
+            #     )
             return _hobj
 
     # Remove tiny
@@ -244,7 +254,7 @@ def plot(
             histtype="step",
             color=style[onto]["color"],  hatch=style[onto]['hatch'],
             lw=2,
-            zorder=4,
+            zorder=2,
         )
         _hatch = [None, *[style[k]["hatch"] for k in bkgs + sigs]]
         _edgecolor = [style[k]["color"] if h not in ["none", None] else None for k, h in zip([onto]+bkgs + sigs, _hatch)]
@@ -460,6 +470,8 @@ def plot(
             fig.canvas.draw()
             mu_strs = []
             for sig in sigs_original:
+                if rmap is None or sig not in rmap:
+                    continue
                 _r = get_fit_val(
                     fitDiag_root,
                     rmap[sig],

@@ -104,23 +104,31 @@ def plot(
     # Check if all available
     for key in sigs + bkgs + project:
         if key not in hist_dict.keys():
-            raise ValueError(
-                f"Hist '{key}' is missing. Available keys are: {hist_keys}"
+            logging.warning(
+                f"Hist '{key}' is missing and will be ignored. Available keys are: {hist_keys}"
             )
 
     # Soft-fail on missing hist
     def hist_dict_fcn(name, raw=False):
+        if name not in hist_dict:
+            logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
+            _hobj = hist_dict[list(hist_dict.keys())[0]].copy()
+            _hobj.view().value *= 0
+            _hobj.view().variance *= 0
+            return _hobj
         _hobj = hist_dict[name].copy()
         if raw:
             return _hobj
         # Convert zeros to nans for plotting (lw>0)
-        if np.any(_hobj.values() < 0):  # Flip logic for all negative (helps in ratio plot)
+        if np.any(
+            _hobj.values() < 0
+        ):  # Flip logic for all negative (helps in ratio plot)
             _th = 0.05 * np.min(_hobj.values())
             non_zero_indices = np.where(_hobj.values() < _th)[0]
             if non_zero_indices.size > 0:
-                _hobj.view().value[:non_zero_indices[0]] = np.nan
+                _hobj.view().value[: non_zero_indices[0]] = np.nan
             if non_zero_indices.size > 0:
-                _hobj.view().value[non_zero_indices[-1] + 1:] = np.nan
+                _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
             # logging.debug(
             #         f"  Hist {name} had low values set to NaNs: {_hobj.values()}."
             #     )
@@ -132,9 +140,9 @@ def plot(
             _th = 0.1 * np.max(_hobj.values())
             non_zero_indices = np.where(_hobj.values() > _th)[0]
             if non_zero_indices.size > 0:
-                _hobj.view().value[:non_zero_indices[0]] = np.nan
+                _hobj.view().value[: non_zero_indices[0]] = np.nan
             if non_zero_indices.size > 0:
-                _hobj.view().value[non_zero_indices[-1] + 1:] = np.nan
+                _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
             # if len(non_zero_indices) != len(_hobj.values()):
             #     logging.debug(
             #         f"  Hist '{name}' had low values set to NaNs: {_hobj.values()}."
@@ -252,14 +260,23 @@ def plot(
             label=onto,
             yerr=False,  # facecolor='none',
             histtype="step",
-            color=style[onto]["color"],  hatch=style[onto]['hatch'],
+            color=style[onto]["color"],
+            hatch=style[onto]["hatch"],
             lw=2,
             zorder=2,
         )
         _hatch = [None, *[style[k]["hatch"] for k in bkgs + sigs]]
-        _edgecolor = [style[k]["color"] if h not in ["none", None] else None for k, h in zip([onto]+bkgs + sigs, _hatch)]
-        _facecolor = ["none" if h not in ["none", None] or k == onto else style[k]["color"] for k, h in zip([onto]+bkgs + sigs, _hatch)]
-        _linewidth = [2]+[2 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])]      
+        _edgecolor = [
+            style[k]["color"] if h not in ["none", None] else None
+            for k, h in zip([onto] + bkgs + sigs, _hatch)
+        ]
+        _facecolor = [
+            "none" if h not in ["none", None] or k == onto else style[k]["color"]
+            for k, h in zip([onto] + bkgs + sigs, _hatch)
+        ]
+        _linewidth = [2] + [
+            2 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])
+        ]
         hep.histplot(
             [hist_dict[onto], *[hist_dict_fcn(k) for k in bkgs + sigs]],
             ax=ax,
@@ -299,7 +316,7 @@ def plot(
             rmap = {sigs_original[0]: "r"}
     if project_signal is not None:
         _rs = dict(zip(sigs_original, [1] * len(sigs_original)))
-        if fit_type == 'prefit':
+        if fit_type == "prefit":
             pass
         elif fitDiag_root is None:
             logging.warning(
@@ -362,8 +379,14 @@ def plot(
         )
 
     _hatch = [style[sig]["hatch"] for sig in sigs_original]
-    _edgecolor = [style[k]["color"] if h not in ["none", None] else "none" for k, h in zip(sigs_original, _hatch)]
-    _facecolor = ["none" if h not in ["none", None] else style[k]["color"] for k, h in zip(sigs_original, _hatch)]
+    _edgecolor = [
+        style[k]["color"] if h not in ["none", None] else "none"
+        for k, h in zip(sigs_original, _hatch)
+    ]
+    _facecolor = [
+        "none" if h not in ["none", None] else style[k]["color"]
+        for k, h in zip(sigs_original, _hatch)
+    ]
     _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
     hep.histplot(
         [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_original],
@@ -507,8 +530,8 @@ def plot(
                     transform=ax.transAxes,
                 )
                 ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
-         
-    # Ratio legend       
+
+    # Ratio legend
     rax.legend(
         loc="upper right",
         ncol=3,
@@ -550,7 +573,7 @@ def plot(
         )
         rax.add_artist(at)
         hep.plot.yscale_anchored_text(rax)
-        
+
     ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
     return fig, (ax, rax)

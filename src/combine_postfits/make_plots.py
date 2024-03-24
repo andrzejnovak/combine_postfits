@@ -39,8 +39,8 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
-    
-    
+
+
 def sci_notation(number, sig_fig=1, no_zero=False):
     ret_string = "{0:.{1:d}e}".format(number, sig_fig)
     a, b = ret_string.split("e")
@@ -51,13 +51,15 @@ def sci_notation(number, sig_fig=1, no_zero=False):
         else:
             return "0"
     elif float(a) == 1:
-        return "10^{"+str(b)+"}"
+        return "10^{" + str(b) + "}"
     else:
-        return a + "\,x\,"+"10^{"+str(b)+"}"
+        return a + "\,x\," + "10^{" + str(b) + "}"
+
 
 def get_digits(number):
-    before, _, after = np.round(number, 10).astype(str).partition('.')
+    before, _, after = np.round(number, 10).astype(str).partition(".")
     return len(before), len(after)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -195,7 +197,7 @@ def main():
         default="False",
         choices={True, False},
         help="Hide zeroth tick on the y-axis.",
-    )    
+    )
     parser.add_argument(
         "--cmslabel",
         default="Private Work",
@@ -277,11 +279,11 @@ def main():
         blind_cats = args.blind.split(",") if "," in args.blind else [args.blind]
     else:
         blind_cats = []
-    
+
     # Parse rmap
     if args.rmap is not None:
         kvs = args.rmap.split(",")
-        rmap = {kv.split(":")[0]:kv.split(":")[1] for kv in kvs}
+        rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
     else:
         rmap = None
 
@@ -369,19 +371,20 @@ def main():
                     pub=args.pub,
                     year=args.year,
                 )
-                
+
                 # Sci notat
                 leading_dig_max, decimal_dig_max = 0, 0
                 for tick in ax.get_yticks():
                     leading_dig_max = max(leading_dig_max, get_digits(tick)[0])
                     decimal_dig_max = max(decimal_dig_max, get_digits(tick)[1])
                 if (leading_dig_max > 3) or (decimal_dig_max > 3):
+
                     def g(x, pos):
-                        return fr"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
+                        return rf"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
 
                     ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(g))
 
-                # Save                
+                # Save
                 for fmt in format:
                     fig.savefig(
                         f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",

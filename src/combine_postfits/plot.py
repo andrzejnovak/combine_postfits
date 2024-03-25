@@ -169,11 +169,14 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    default_signal = [
-        k
-        for k in hist_keys
-        if channels[0][k] == channels[0]["total_signal"] and "total" not in k
-    ]
+    if "total_signal" not in channels[0]:  # no signal in CRs
+        default_signal = []
+    else:
+        default_signal = [
+            k
+            for k in hist_keys
+            if channels[0][k] == channels[0]["total_signal"] and "total" not in k
+        ]
     default_bkgs = [
         k
         for k in hist_keys
@@ -197,8 +200,8 @@ def plot(
                 f"  Signal {default_signal[0]} picked automatically by matching to `total_signal`."
             )
         else:
-            raise ValueError(
-                f"No default signal was found. Specify signal samples with `--sigs`. Choices are: {hist_keys}"
+            logging.warning(
+                f"No default signal was found. Can be set with `--sigs`. Choices are: {hist_keys}"
             )
     bkgs = [bkg for bkg in bkgs if bkg != onto and bkg not in sigs]
     # Remove negatives from backgrounds/stackable:
@@ -377,28 +380,28 @@ def plot(
             xerr=True,
             zorder=4,
         )
-
-    _hatch = [style[sig]["hatch"] for sig in sigs_original]
-    _edgecolor = [
-        style[k]["color"] if h not in ["none", None] else "none"
-        for k, h in zip(sigs_original, _hatch)
-    ]
-    _facecolor = [
-        "none" if h not in ["none", None] else style[k]["color"]
-        for k, h in zip(sigs_original, _hatch)
-    ]
-    _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
-    hep.histplot(
-        [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_original],
-        ax=rax,
-        facecolor=_facecolor,
-        edgecolor=_edgecolor,
-        hatch=_hatch,
-        lw=_lw,
-        stack=True,
-        histtype="fill",
-        label=[style[sig]["label"] for sig in sigs_original],
-    )
+    if len(sigs_original) > 0:  # No signals in CRs
+        _hatch = [style[sig]["hatch"] for sig in sigs_original]
+        _edgecolor = [
+            style[k]["color"] if h not in ["none", None] else "none"
+            for k, h in zip(sigs_original, _hatch)
+        ]
+        _facecolor = [
+            "none" if h not in ["none", None] else style[k]["color"]
+            for k, h in zip(sigs_original, _hatch)
+        ]
+        _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
+        hep.histplot(
+            [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_original],
+            ax=rax,
+            facecolor=_facecolor,
+            edgecolor=_edgecolor,
+            hatch=_hatch,
+            lw=_lw,
+            stack=True,
+            histtype="fill",
+            label=[style[sig]["label"] for sig in sigs_original],
+        )
     ## Bkg Unc
     yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(
         data.variances() * tot_bkg.axes[0].widths

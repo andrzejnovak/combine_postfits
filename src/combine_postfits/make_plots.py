@@ -391,7 +391,7 @@ def main():
                         format=fmt,
                         dpi=300,
                         bbox_inches="tight",
-                        transparent=True,
+                        # transparent=True,
                     )
                 if semaphore is not None:
                     semaphore.release()

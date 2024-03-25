@@ -140,7 +140,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
                     sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
                     for fit in avail_fit_types
                     for ch in avail_channels
-                    if hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
+                    if f"shapes_{fit}/{ch}/{k}" in fitDiag and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
                     and "total" not in k  # Sum only TH1s, data is black anyway
                 ]
             )

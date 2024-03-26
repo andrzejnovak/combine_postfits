@@ -327,21 +327,21 @@ def main():
             # list
             else:
                 channels = sum([fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")], [])
-                channels = [[c] for c in channels]
                 blinds = [
-                    True if c in blind_cats else False for c in args.cats.split(",")
+                    True if c in blind_cats else False for c in channels
                 ]
-                savenames = [c[0] for c in channels]
+                savenames = [c for c in channels]
+                channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
         all_types.extend([fit_type] * len(channels))
         all_savenames.extend(savenames)
-    # logging.debug(f"Channels: {all_channels}")
-    # logging.debug(f"Blinds: {all_blinds}")
-    # logging.debug(f"Types: {all_types}")
-    # logging.debug(f"Savenames: {all_savenames}")
+    # logging.debug(f"All Channels: {all_channels}")
+    # logging.debug(f"All Blinds: {all_blinds}")
+    # logging.debug(f"All Types: {all_types}")
+    # logging.debug(f"All Savenames: {all_savenames}")
 
     _procs = []
     with Progress(
@@ -408,6 +408,7 @@ def main():
 
                 # Save
                 for fmt in format:
+                    logging.debug(f"  Saving: {args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}")
                     fig.savefig(
                         f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,

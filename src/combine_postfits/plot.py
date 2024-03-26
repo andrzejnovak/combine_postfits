@@ -110,7 +110,13 @@ def plot(
             )
 
     # Soft-fail on missing hist
-    def hist_dict_fcn(name, raw=False):
+    def hist_dict_fcn(name, raw=False, global_scale=True):
+        '''
+        raw: return raw hist without any modifications
+        global_scale: when true will clip small values based on global max, else based on hist max
+                set to False when plotting eg. signal in ratio 
+        '''
+        _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()]) 
         if name not in hist_dict:
             logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
             _hobj = hist_dict[list(hist_dict.keys())[0]].copy()
@@ -123,13 +129,13 @@ def plot(
         # Convert zeros to nans for plotting (lw>0)
         if np.any(
             _hobj.values() < 0
-        ):
+        ):  # negative hists
             _th = 0.02 * np.min(_hobj.values())
             non_zero_indices = np.where(_hobj.values() < _th)[0]
-        else:
-            _th = 0.02 * np.max(_hobj.values())
+        else:  # positive hists
+            _th = 0.02 * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
             non_zero_indices = np.where(_hobj.values() > _th)[0]
-        if len(non_zero_indices) != len(_hobj.values()):
+        if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
             logging.debug(
                 f"  Hist '{name}' has low values. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
             )
@@ -380,7 +386,15 @@ def plot(
             xerr=True,
             zorder=4,
         )
+    # Signal plotting 
+    # Plot total signal if sum of matched signals doesn't match total, emit warning
+    if not np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original]) == np.sum(hist_dict_fcn("total_signal", raw=True).values()):
+            logging.warning(
+                f"  Sum of specified signals: {sigs_original} does not match 'total_signal'. Will plot 'total_signal' in the ratio instead."
+            )
+            sigs_original = ["total_signal"]
     if len(sigs_original) > 0 and np.any([sig in hist_keys for sig in sigs_original]):  # No signals in CRs
+        # Plotted signals should match total_signal, replace if not
         _hatch = [style[sig]["hatch"] for sig in sigs_original]
         _edgecolor = [
             style[k]["color"] if h not in ["none", None] else "none"
@@ -392,7 +406,7 @@ def plot(
         ]
         _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
         hep.histplot(
-            [hist_dict_fcn(sig) / np.sqrt(data.variances()) for sig in sigs_original],
+            [hist_dict_fcn(sig, global_scale=False) / np.sqrt(data.variances()) for sig in sigs_original],
             ax=rax,
             facecolor=_facecolor,
             edgecolor=_edgecolor,

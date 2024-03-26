@@ -110,6 +110,7 @@ def fill_colors(style, cmap=None, no_duplicates=True):
 def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
     style_base = {
         "data": {"label": "Data", "color": "black", "hatch": None, "yield": 0},
+        "total_signal": {"label": "Total Signal", "color": "red", "hatch": None, "yield": 0},
         "qcd": {"label": "QCD", "color": "#94a4a2", "hatch": None, "yield": 0},
     }
 
@@ -167,7 +168,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
                 "yield": yield_dict[key],
             }
     # Add total, total_signal, total_background at the end
-    for key in ["total", "total_signal", "total_background"]:
+    for key in ["total", "total_background"]:
         style[key] = {
             "label": key,
             "color": None,

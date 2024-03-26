@@ -60,6 +60,12 @@ options:
 
   ### Examples
 
+  Tests
+   - style/no style
+   - scaled sigs
+   - no cats, list cats, map cats, both with wildcards
+
+
   #### Hcc
   ```
   combine_postfits -i fitDiagnosticsTest.root -o test --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass:ptbin*pass2016;fail:ptbin*fail*;muCRpass:muonCRpass2016;muCRfail:muonCRfail2016' --style customized.yml --onto qcd --bkgs top,other,wqq,wcq,zqq,zbb,hbb -vv --project-signal 200,0 -p

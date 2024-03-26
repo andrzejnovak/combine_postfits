@@ -343,10 +343,13 @@ def geth(name, shapes_dir, restoreNorm=True):
 
 
 def getha(name, channels, restoreNorm=True):
+    for shapes_dir in channels:
+        if name not in shapes_dir:
+            logging.debug(f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped.")
     return sum(
-        [geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels]
+        [geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir]
     )
-
+    
 
 def geths(names, channels, restoreNorm=True, style_dict=None):
     if style_dict is not None:
@@ -365,16 +368,18 @@ def merge_hists(hist_dict, merge_map):
     for k, v in merge_map.items():
         if k in hist_dict and k != v[0]:
             logging.warning(
-                f"Won't add merge `{k} : {v}` because histogram: `{k}` already exists."
+                f"  Mapping `'{k}' : {v}` will replace existing histogram: '{k}'."
             )
-            continue
         to_merge = []
         for name in v:
             if name not in hist_dict:
                 logging.warning(
-                    f"Histogram `{name}` is not available in channel for a merge {v} -> {k}."
+                    f"  Histogram '{name}' is not available in channel for a merge {v} -> '{k}' and won't be part of the merge."
                 )
             else:
                 to_merge.append(hist_dict[name])
-        hist_dict[k] = sum(to_merge)
+        if len(to_merge) > 0:
+            hist_dict[k] = sum(to_merge)
+        else:
+            logging.warning(f"  No histograms available for merge {v} -> '{k}'.")
     return hist_dict

@@ -55,3 +55,12 @@ options:
   --debug, -vv          Debug logging
   -p                    Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.
   ```
+
+
+
+  ### Examples
+
+  #### Hcc
+  ```
+  combine_postfits -i fitDiagnosticsTest.root -o test --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass:ptbin*pass2016;fail:ptbin*fail*;muCRpass:muonCRpass2016;muCRfail:muonCRfail2016' --style customized.yml --onto qcd --bkgs top,other,wqq,wcq,zqq,zbb,hbb -vv --project-signal 200,0 -p
+  ````

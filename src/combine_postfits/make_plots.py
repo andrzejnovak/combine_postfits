@@ -8,6 +8,7 @@ import json
 import matplotlib
 from multiprocessing import Process, Semaphore
 import time
+import fnmatch
 
 matplotlib.use("Agg")
 import mplhep as hep
@@ -286,6 +287,10 @@ def main():
         rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
     else:
         rmap = None
+    if args.sigs is not None:
+        _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
+        if len(_unset_sigs) > 0:
+            logging.warning(f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`.")
 
     # Get types/cats/blinds unwrapped
     all_channels = []
@@ -293,33 +298,50 @@ def main():
     all_types = []
     all_savenames = []
     for fit_type in fit_types:
+        # all channels
+        available_channels = [
+                c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
+        ]
+        logging.debug(f"Available '{fit_type}' channels: {available_channels}")
+        # Take all unless blinded
         if args.cats is None:
-            channels = [
-                [c[:-2]] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
-            ]
+            channels = [[c] for c in available_channels]
             blinds = [True if c[0] in blind_cats else False for c in channels]
-            savenames = [c[0] for c in channels]
+            savenames = [c[0] for c in available_channels]
+            logging.debug(f"Plotting channels: {channels}")
+        # Parse --cats, either mapping or list
         else:
+            # mapping
             if ":" in args.cats:
                 channels = []
                 blinds = []
                 savenames = []
                 for cat in args.cats.split(";"):
                     mcat, cats = cat.split(":")
-                    channels.append(cats.split(","))
+                    cats = sum([fnmatch.filter(available_channels, _cat) for _cat in cats.split(",")], [])
+                    # channels.append(cats.split(","))
+                    channels.append(cats)
                     blinds.append(True if mcat in blind_cats else False)
                     savenames.append(mcat)
+                    logging.debug(f"Plotting merged channels '{mcat}': {cats}")
+            # list
             else:
-                channels = [[c] for c in args.cats.split(",")]
+                channels = sum([fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")], [])
+                channels = [[c] for c in channels]
                 blinds = [
                     True if c in blind_cats else False for c in args.cats.split(",")
                 ]
-                savenames = args.cats.split(",")
+                savenames = [c[0] for c in channels]
+                logging.debug(f"Plotting channels: {channels}")
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
         all_types.extend([fit_type] * len(channels))
         all_savenames.extend(savenames)
+    # logging.debug(f"Channels: {all_channels}")
+    # logging.debug(f"Blinds: {all_blinds}")
+    # logging.debug(f"Types: {all_types}")
+    # logging.debug(f"Savenames: {all_savenames}")
 
     _procs = []
     with Progress(
@@ -405,7 +427,6 @@ def main():
             else:
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)
-
         if args.multiprocessing:
             while sum([p.is_alive() for p in _procs]) > 0:
                 n_running = sum([p.is_alive() for p in _procs])
@@ -413,7 +434,7 @@ def main():
                     prog_plotting, completed=len(_procs) - n_running, refresh=True
                 )
                 time.sleep(0.1)
-        progress.update(prog_plotting, completed=len(_procs), refresh=True)
+        progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True)
 
 
 if __name__ == "__main__":

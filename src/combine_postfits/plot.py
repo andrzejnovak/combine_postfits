@@ -27,7 +27,6 @@ def log_pretty(obj):
 
     return f"{pretty_out}\n"
 
-
 @typechecked
 def plot(
     fitDiag_uproot,
@@ -74,6 +73,7 @@ def plot(
         )
     if merge is None and style is not None:
         merge = extract_mergemap(style)
+    logging.debug(f"  Merge mapping: {merge}")
     if sigs is None:
         sigs = []
     if bkgs is None:
@@ -82,14 +82,14 @@ def plot(
         project = []
     # Fetch hists
     channels = [fitDiag_uproot[f"{fit_shapes_name}/{cat}"] for cat in cats]
-    hist_keys = [
+    orig_hist_keys = [
         k.split(";")[0]
         for k in channels[0].keys()
         if "data" not in k and "covar" not in k
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
-        hist_keys,
+        orig_hist_keys,
         channels,
         restoreNorm=restoreNorm,
         style_dict=None,
@@ -98,6 +98,7 @@ def plot(
     tot = getha("total", channels, restoreNorm=restoreNorm)
     # Prepare merges
     hist_dict = merge_hists(hist_dict, merge)
+    hist_keys = list(hist_dict.keys())
     _merged_away = []
     for k, v in merge.items():
         _merged_away += v
@@ -105,7 +106,7 @@ def plot(
     for key in sigs + bkgs + project:
         if key not in hist_dict.keys():
             logging.warning(
-                f"Hist '{key}' is missing and will be ignored. Available keys are: {hist_keys}"
+                f"  Hist '{key}' is missing and will be ignored. Available keys are: {hist_keys}"
             )
 
     # Soft-fail on missing hist
@@ -122,32 +123,23 @@ def plot(
         # Convert zeros to nans for plotting (lw>0)
         if np.any(
             _hobj.values() < 0
-        ):  # Flip logic for all negative (helps in ratio plot)
-            _th = 0.05 * np.min(_hobj.values())
+        ):
+            _th = 0.02 * np.min(_hobj.values())
             non_zero_indices = np.where(_hobj.values() < _th)[0]
-            if non_zero_indices.size > 0:
-                _hobj.view().value[: non_zero_indices[0]] = np.nan
-            if non_zero_indices.size > 0:
-                _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
-            # logging.debug(
-            #         f"  Hist {name} had low values set to NaNs: {_hobj.values()}."
-            #     )
-            return _hobj
         else:
-            # logging.debug(
-            #         f"  Hist '{name}' has values: {_hobj.values()}."
-            #     )
-            _th = 0.1 * np.max(_hobj.values())
+            _th = 0.02 * np.max(_hobj.values())
             non_zero_indices = np.where(_hobj.values() > _th)[0]
-            if non_zero_indices.size > 0:
-                _hobj.view().value[: non_zero_indices[0]] = np.nan
-            if non_zero_indices.size > 0:
-                _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
-            # if len(non_zero_indices) != len(_hobj.values()):
-            #     logging.debug(
-            #         f"  Hist '{name}' had low values set to NaNs: {_hobj.values()}."
-            #     )
-            return _hobj
+        if len(non_zero_indices) != len(_hobj.values()):
+            logging.debug(
+                f"  Hist '{name}' has low values. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
+            )
+            _hobj.view().value[:non_zero_indices[0]] = np.nan
+            _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
+        # if len(non_zero_indices) != len(_hobj.values()):
+            logging.debug(
+                f"  Hist '{name}' had low values. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
+            )
+        return _hobj
 
     # Remove tiny
     if remove_tiny:
@@ -174,7 +166,7 @@ def plot(
     else:
         default_signal = [
             k
-            for k in hist_keys
+            for k in orig_hist_keys
             if channels[0][k] == channels[0]["total_signal"] and "total" not in k
         ]
     default_bkgs = [
@@ -201,7 +193,7 @@ def plot(
             )
         else:
             logging.warning(
-                f"No default signal was found. Can be set with `--sigs`. Choices are: {hist_keys}"
+                f"  No default signal was found. Can be set with the `sigs` kwarg. Choices are: {hist_keys}"
             )
     bkgs = [bkg for bkg in bkgs if bkg != onto and bkg not in sigs]
     # Remove negatives from backgrounds/stackable:
@@ -209,9 +201,14 @@ def plot(
     _sigs, _bkgs = [], []
     for list_in, list_out in zip([sigs, bkgs], [_sigs, _bkgs]):
         for key in list_in:
+            if key not in hist_keys:
+                logging.warning(
+                    f"  Hist '{key}' is not available for '{fit_type}' in the input file."
+                )
+                continue
             if np.any(hist_dict_fcn(key, raw=True).values() < 0):
                 logging.warning(
-                    f"  Hist {key} has negative values and will not be show in the stack"
+                    f"  Hist '{key}' has negative values and will not be show in the stack"
                 )
                 logging.debug(f"  Hist {key}: {hist_dict_fcn(key).values()}")
             else:
@@ -257,17 +254,18 @@ def plot(
             facecolor=[style[k]["color"] for k in bkgs + sigs],
         )
     else:
-        hep.histplot(
-            hist_dict_fcn(onto),
-            ax=ax,
-            label=onto,
-            yerr=False,  # facecolor='none',
-            histtype="step",
-            color=style[onto]["color"],
-            hatch=style[onto]["hatch"],
-            lw=2,
-            zorder=2,
-        )
+        if onto in hist_dict.keys():
+            hep.histplot(
+                hist_dict_fcn(onto),
+                ax=ax,
+                label=onto,
+                yerr=False,  # facecolor='none',
+                histtype="step",
+                color=style[onto]["color"],
+                hatch=style[onto]["hatch"],
+                lw=2,
+                zorder=2,
+            )
         _hatch = [None, *[style[k]["hatch"] for k in bkgs + sigs]]
         _edgecolor = [
             style[k]["color"] if h not in ["none", None] else None
@@ -281,7 +279,7 @@ def plot(
             2 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])
         ]
         hep.histplot(
-            [hist_dict[onto], *[hist_dict_fcn(k) for k in bkgs + sigs]],
+            [hist_dict_fcn(onto), *[hist_dict_fcn(k) for k in bkgs + sigs]],
             ax=ax,
             label=["_", *(bkgs + sigs)],
             stack=True,
@@ -340,13 +338,15 @@ def plot(
                     )
                     for sig in rmap
                 }
-        sig_dicts = defaultdict(lambda: 1)
+        sig_dicts = defaultdict(lambda: 0)
         for sig, proj in zip(sigs_original, project_signal):
             sig_dicts[sig] = proj
         logging.info(
             f"  Projecting signal on x-axis: {'; '.join([f'{k}:{v:.2f}' for k, v in _rs.items()])}"
         )
         for sig in sigs_original:
+            if sig_dicts[sig] == 0 or sig not in hist_keys:
+                continue
             _scaled_sig = hist_dict_fcn(sig) * sig_dicts[sig] / _rs[sig]
             _p_label = (
                 style[sig]["label"]
@@ -380,7 +380,7 @@ def plot(
             xerr=True,
             zorder=4,
         )
-    if len(sigs_original) > 0:  # No signals in CRs
+    if len(sigs_original) > 0 and np.any([sig in hist_keys for sig in sigs_original]):  # No signals in CRs
         _hatch = [style[sig]["hatch"] for sig in sigs_original]
         _edgecolor = [
             style[k]["color"] if h not in ["none", None] else "none"
@@ -436,8 +436,11 @@ def plot(
     if clipx:
         _h, _bins = data.copy().to_numpy()
         _h += tot_bkg.to_numpy()[0]
-        nonzero = _bins[:-1][_h > 0]
-        ax.set_xlim(nonzero[0], nonzero[-1])
+        if len(_bins) > 2:
+            nonzero = _bins[:-1][_h > 0]
+            ax.set_xlim(nonzero[0], nonzero[-1])
+        else:  # Single bin
+            ax.set_xlim(_bins[0], _bins[-1])
     else:
         ax.set_xlim(data.axes[0].edges[0], data.axes[0].edges[-1])
 
@@ -496,8 +499,9 @@ def plot(
             fig.canvas.draw()
             mu_strs = []
             for sig in sigs_original:
-                if rmap is None or sig not in rmap:
+                if rmap is None or sig not in rmap or sig not in hist_keys:
                     continue
+                logging.debug(f"  Reading signal strength for '{sig}' from parameter '{rmap[sig]}'.")
                 _r = get_fit_val(
                     fitDiag_root,
                     rmap[sig],
@@ -564,8 +568,8 @@ def plot(
         chi2_raw = abs(data.values() - tot.values()) ** 2 / data.values()
         chi2_val = np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0))
         mean_chi2 = chi2_val / np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0) != 0)
-        logging.debug(f"Chi2 ({cats[0]}): {chi2_val:.2f}")
-        logging.debug(f"Mean Chi2 - chi2/nbins ({cats[0]}): {mean_chi2:.2f}")
+        logging.debug(f"  Chi2 ({cats[0]}): {chi2_val:.2f}")
+        logging.debug(f"  Mean Chi2 - chi2/nbins ({cats[0]}): {mean_chi2:.2f}")
 
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(

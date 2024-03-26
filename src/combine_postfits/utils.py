@@ -21,6 +21,16 @@ cmap10 = [
     "#92dadd",
 ]
 
+def adjust_lightness(color, amount=0.5):
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
 
 def module_exists(module_name):
     return module_name in (name for loader, name, ispkg in iter_modules())
@@ -84,6 +94,7 @@ def fill_colors(style, cmap=None, no_duplicates=True):
         cmap_clean = cmap
     cycler_iter = cycler("color", cmap_clean)()
     counter = 0
+    taken = []
     for key in style:
         if "color" not in style[key] or style[key]["color"] is None:
             pop_col = next(cycler_iter)
@@ -91,10 +102,11 @@ def fill_colors(style, cmap=None, no_duplicates=True):
             logging.info(
                 f'Key "color" not found for sample "{key}". Setting to: {pop_col}',
             )
-            style[key]["color"] = pop_col["color"]
+            style[key]["color"] = pop_col["color"] if pop_col["color"] not in taken else adjust_lightness(pop_col["color"], 1.4)
+            taken.append(pop_col["color"])
     if counter > len(cmap):
         logging.warning(
-            f"'cmap' is too short. There will be {counter-len(cmap)} duplicate colors.",
+            f"'cmap' is too short. There will be {counter-len(cmap)} duplicate colors shown in lighter shades.",
         )
     for key, color, label in zip(
         ["data", "total_signal"], ["k", "red"], ["Data", "Signal"]
@@ -107,11 +119,10 @@ def fill_colors(style, cmap=None, no_duplicates=True):
     return style
 
 
-def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
+def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     style_base = {
         "data": {"label": "Data", "color": "black", "hatch": None, "yield": 0},
         "total_signal": {"label": "Total Signal", "color": "red", "hatch": None, "yield": 0},
-        "qcd": {"label": "QCD", "color": "#94a4a2", "hatch": None, "yield": 0},
     }
 
     fit_types = ["prefit", "fit_s", "fit_b"]
@@ -133,9 +144,21 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
         return sorted([k for k in list(set(snames)) if "covar" not in k])
 
     sample_keys = get_samples_fitDiag(fitDiag)
-    # Sort by yield
-    if sort:
-        yield_dict = {
+    
+    # Sorting - yield/peakiness
+    def linearity(h):
+        _h = h.values()
+        x = np.arange(len(_h))
+        try:
+            coef = np.polyfit(x, _h ,1)
+        except:  # noqa
+            return 0
+        poly1d_fn = np.poly1d(coef) 
+        fy = poly1d_fn(x)
+        residuals = abs(fy-_h)/np.sqrt(_h)
+        return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
+
+    yield_dict = {
             k: sum(
                 [
                     sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
@@ -147,10 +170,33 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
             )
             for k in sample_keys
         }
+    linearity_dict = {
+        k: np.mean(
+            [
+                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
+                for fit in avail_fit_types
+                for ch in avail_channels
+                if f"shapes_{fit}/{ch}/{k}" in fitDiag and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
+                and "total" not in k  # Sum only TH1s, data is black anyway
+            ]
+        )
+        for k in sample_keys
+    }
+    sort_score_dicts = {}
+    for k, v in yield_dict.items():
+        if sort_peaky:
+            sort_score_dicts[k] = np.log(v) * (linearity_dict[k])
+        else:
+            sort_score_dicts[k] = v
+    if sort:
+        if not sort_peaky:
+            logging.info(f"Sorting samples by yield")
+        else:
+            logging.info(f"EXPERIMENTAL: Sorting samples by a hybrid score: log(yield) * peakiness")
         keys_sorted = [
             k
             for k, v in sorted(
-                yield_dict.items(), key=lambda item: item[1], reverse=True
+                sort_score_dicts.items(), key=lambda item: item[1], reverse=True
             )
         ]
     else:
@@ -165,7 +211,8 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
                 "label": key,
                 "color": None,
                 "hatch": None,
-                "yield": yield_dict[key],
+                # "yield": yield_dict[key],
+                # "sort_score": sort_score_dicts[key],
             }
     # Add total, total_signal, total_background at the end
     for key in ["total", "total_background"]:
@@ -173,7 +220,8 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
             "label": key,
             "color": None,
             "hatch": None,
-            "yield": yield_dict[key],
+            # "yield": yield_dict[key],
+            # "sort_score": sort_score_dicts[key],
         }
 
     # Fill colors
@@ -214,8 +262,8 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True):
                     "https://github.com/BlakeRMills/MetBrewer"
                 )
     colors = [tuple(c) if isinstance(c, np.ndarray) else c for c in colors]
+    # style = sort_by_yield(style, reverse=True)
     style = fill_colors(style, cmap=colors, no_duplicates=True)
-    style = sort_by_yield(style, reverse=False)
     return style
 
 
@@ -231,6 +279,7 @@ def sort_by_yield(style, reverse=True):
             out[k] = style[k]
     for k in out.keys():
         del out[k]["yield"]
+        del out[k]["sort_score"]
     return out
 
 

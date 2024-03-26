@@ -260,7 +260,7 @@ def main():
             except yaml.YAMLError as exc:
                 print(exc)
     else:
-        style = utils.make_style_dict_yaml(fd, cmap=args.cmap)
+        style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
         logging.warning(
             "No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
             "The `plot` function will respect the order of samples in the style yaml unless overwritten. "
@@ -307,7 +307,7 @@ def main():
         if args.cats is None:
             channels = [[c] for c in available_channels]
             blinds = [True if c[0] in blind_cats else False for c in channels]
-            savenames = [c[0] for c in available_channels]
+            savenames = [c for c in available_channels]
             logging.debug(f"Plotting channels: {channels}")
         # Parse --cats, either mapping or list
         else:
@@ -338,10 +338,10 @@ def main():
         all_blinds.extend(blinds)
         all_types.extend([fit_type] * len(channels))
         all_savenames.extend(savenames)
-    # logging.debug(f"All Channels: {all_channels}")
-    # logging.debug(f"All Blinds: {all_blinds}")
-    # logging.debug(f"All Types: {all_types}")
-    # logging.debug(f"All Savenames: {all_savenames}")
+    logging.debug(f"All Channels: {all_channels}")
+    logging.debug(f"All Blinds: {all_blinds}")
+    logging.debug(f"All Types: {all_types}")
+    logging.debug(f"All Savenames: {all_savenames}")
 
     _procs = []
     with Progress(
@@ -408,7 +408,7 @@ def main():
 
                 # Save
                 for fmt in format:
-                    logging.debug(f"  Saving: {args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}")
+                    logging.debug(f"  Saving: '{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}'")
                     fig.savefig(
                         f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,

@@ -110,7 +110,7 @@ def plot(
             )
 
     # Soft-fail on missing hist
-    def hist_dict_fcn(name, raw=False, global_scale=True):
+    def hist_dict_fcn(name, raw=False, global_scale=False):
         '''
         raw: return raw hist without any modifications
         global_scale: when true will clip small values based on global max, else based on hist max
@@ -178,7 +178,7 @@ def plot(
     default_bkgs = [
         k
         for k in hist_keys
-        if k not in default_signal and k != onto and "total" not in k
+        if k not in default_signal and k != onto and "total" not in k and k not in _merged_away
     ]
     _sortable, _extra = (
         [k for k in default_bkgs if k in style.keys()],
@@ -236,7 +236,7 @@ def plot(
             f"Samples: {unused} are available in the workspace, but not included to be plotted."
         )
     for key in sigs + bkgs:
-        if key not in style.keys():
+        if key not in style.keys() and key not in _merged_away:
             logging.warning(
                 f"  Key `{key} is not available in `styles`. Will autofill",
             )
@@ -388,7 +388,7 @@ def plot(
         )
     # Signal plotting 
     # Plot total signal if sum of matched signals doesn't match total, emit warning
-    if not np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original]) == np.sum(hist_dict_fcn("total_signal", raw=True).values()):
+    if not np.round(np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original])) == np.round(np.sum(hist_dict_fcn("total_signal", raw=True).values())):
             logging.warning(
                 f"  Sum of specified signals: {sigs_original} does not match 'total_signal'. Will plot 'total_signal' in the ratio instead."
             )

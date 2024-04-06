@@ -6,6 +6,14 @@ build-backend = "hatchling.build"
 [project.scripts]
 combine_postfits = "combine_postfits.make_plots:main"
 
+[project.urls]
+Homepage = "https://github.com/andrzejnovak/combine_postfits"
+Documentation = "https://package.readthedocs.io/"
+"Bug Tracker" = "https://github.com/organization/package/issues"
+Discussions = "https://github.com/organization/package/discussions"
+Changelog = "https://package.readthedocs.io/en/latest/changelog.html"
+
+
 [project]
 name = "combine_postfits"
 version = "0.1.0"
@@ -18,7 +26,17 @@ authors = [
 maintainers = [
   { name = "Andrzej Novak", email = "andrzej.novak@cern.ch" },
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Physics",
+]
 
 dependencies = [
   "typing_extensions",
@@ -28,24 +46,22 @@ dependencies = [
   "uproot",
   "mplhep>=0.3.45",
   "hist",
-  "scipy"
+  "scipy",
+  "pyyaml",
 ]
 
-classifiers = [
-  "Development Status :: 4 - Beta",
-  "License :: OSI Approved :: BSD License",
-  "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Topic :: Scientific/Engineering :: Physics",
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-image-diff",
+]
+testx = [
+  "pytest-xdist",
+]
+all = [
+  "combine_postfits[test,testx]"
 ]
 
-[project.urls]
-Homepage = "https://github.com/andrzejnovak/combine_postfits"
-Documentation = "https://package.readthedocs.io/"
-"Bug Tracker" = "https://github.com/organization/package/issues"
-Discussions = "https://github.com/organization/package/discussions"
-Changelog = "https://package.readthedocs.io/en/latest/changelog.html"
+
+[tool.pytest.ini_config]
+minversion = 6.0

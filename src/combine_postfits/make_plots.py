@@ -212,9 +212,12 @@ def main():
     parser.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
     parser.add_argument(
         "-p",
-        action="store_true",
+        nargs='?', 
+        default=0, 
+        const=10,
+        type=int,
         dest="multiprocessing",
-        help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.",
+        help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag. `-p` defaults to 10 processes.",
     )
     args = parser.parse_args()
 
@@ -332,7 +335,7 @@ def main():
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
-        assert len(channels) > 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
+        assert len(channels) != 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
@@ -353,11 +356,11 @@ def main():
         TimeElapsedColumn(),
     ) as progress:
         prog_str_fmt = (
-            "[red]Plotting ({} jobs): " if args.multiprocessing else "[red]Plotting: "
+            "[red]Plotting ({} workers): " if args.multiprocessing > 0 else "[red]Plotting: "
         )
         prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
-        semaphore = Semaphore(10 if args.multiprocessing else 0)
+        semaphore = Semaphore(args.multiprocessing)
         for fittype, channel, blind, sname in zip(
             all_types, all_channels, all_blinds, all_savenames
         ):
@@ -382,6 +385,8 @@ def main():
                     cat_info=1 if len(channel) < 6 else {s.split(":")[0]:s.split(":")[1] for s in args.cats.split(";")}[sname],
                     chi2=True,
                 )
+                if fig is None:
+                    return None
                 # Styling
                 if args.xlabel is not None:
                     rax.set_xlabel(args.xlabel)
@@ -421,7 +426,7 @@ def main():
                 if semaphore is not None:
                     semaphore.release()
 
-            if args.multiprocessing:
+            if args.multiprocessing > 0:
                 semaphore.acquire()
                 p = Process(target=mod_plot, args=(semaphore,))
                 _procs.append(p)
@@ -435,7 +440,7 @@ def main():
             else:
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)
-        if args.multiprocessing:
+        if args.multiprocessing > 0:
             while sum([p.is_alive() for p in _procs]) > 0:
                 n_running = sum([p.is_alive() for p in _procs])
                 progress.update(

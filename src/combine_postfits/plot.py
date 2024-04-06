@@ -82,6 +82,8 @@ def plot(
         project = []
     # Fetch hists
     channels = [fitDiag_uproot[f"{fit_shapes_name}/{cat}"] for cat in cats]
+    if len(channels) == 0:
+        return None, (None, None)
     orig_hist_keys = [
         k.split(";")[0]
         for k in channels[0].keys()
@@ -110,7 +112,7 @@ def plot(
             )
 
     # Soft-fail on missing hist
-    def hist_dict_fcn(name, raw=False, global_scale=False):
+    def hist_dict_fcn(name, raw=False, global_scale=False, th=0.01):
         '''
         raw: return raw hist without any modifications
         global_scale: when true will clip small values based on global max, else based on hist max
@@ -130,20 +132,20 @@ def plot(
         if np.any(
             _hobj.values() < 0
         ):  # negative hists
-            _th = 0.01 * np.min(_hobj.values())
+            _th = th * np.min(_hobj.values())
             non_zero_indices = np.where(_hobj.values() < _th)[0]
         else:  # positive hists
-            _th = 0.01 * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
+            _th = th * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
             non_zero_indices = np.where(_hobj.values() > _th)[0]
         if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
             logging.debug(
-                f"  Hist '{name}' has low values. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
+                f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
             )
             _hobj.view().value[:non_zero_indices[0]] = np.nan
             _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
         # if len(non_zero_indices) != len(_hobj.values()):
             logging.debug(
-                f"  Hist '{name}' had low values. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
+                f"  Hist '{name}' had values < '{_th:.3f}'. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
             )
         return _hobj
 
@@ -207,6 +209,10 @@ def plot(
     _sigs, _bkgs = [], []
     for list_in, list_out in zip([sigs, bkgs], [_sigs, _bkgs]):
         for key in list_in:
+            if key not in style:
+                logging.warning(
+                    f"  Hist '{key}' in passed style dict. Available keys include: '{list(style.keys())}'."
+                )
             if key not in hist_keys:
                 logging.warning(
                     f"  Hist '{key}' is not available for '{fit_type}' in the input file."
@@ -233,7 +239,7 @@ def plot(
     ]
     if len(unused) > 0:
         logging.warning(
-            f"Samples: {unused} are available in the workspace, but not included to be plotted."
+            f"  Samples: {unused} are available in the workspace, but not included to be plotted."
         )
     for key in sigs + bkgs:
         if key not in style.keys() and key not in _merged_away:
@@ -409,7 +415,7 @@ def plot(
         ]
         _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
         hep.histplot(
-            [hist_dict_fcn(sig, global_scale=False) / np.sqrt(data.variances()) for sig in sigs_original],
+            [hist_dict_fcn(sig, global_scale=False, th=0.05) / np.sqrt(data.variances()) for sig in sigs_original],
             ax=rax,
             facecolor=_facecolor,
             edgecolor=_edgecolor,

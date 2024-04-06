@@ -1,4 +1,4 @@
-### Installation
+# Installation
 
 ```
 gh repo clone andrzejnovak/combine_postfits
@@ -6,17 +6,14 @@ cd combine_postfits
 pip install -e .
 ```
 
-### Run
+# Run
 
-Example script to be modified as needed can be found in `make_plots.py. Run as:
+Default plotter can be ran as `combine_postfits -i fitDiagnostics.root`. If you
+need further customization edit the source file at `make_plot.py`, which can be
+also copied separately and edited as needed.
 
-```
- python make_plots.py -i hadelModel_m125/fitDiagnosticsTest.root -v --MC --style style_jeff.yml
-```
 
-If you install the non-editable version `pip install .` You can access it as `combine_postfits `
-
-```
+```bash
 usage: combine_postfits [-h] [-i INPUT] [--fit {fit_s,prefit,all}] [-o OUTPUT_FOLDER] [--cats CATS] [--sigs SIGS] [--project-signals PROJECT_SIGNALS] [--bkgs BKGS] [--onto ONTO] [-f {both,png,pdf}] [-s STYLE] [--cmap CMAP] [--clipx {False,True}] (--data | --MC | --toys)
                         [--blind BLIND] [--year {,2018,2017,2016}] [--lumi LUMI] [--pub PUB] [--xlabel XLABEL] [--ylabel YLABEL] [--cmslabel CMSLABEL] [--verbose] [--debug] [-p]
 
@@ -58,46 +55,66 @@ options:
 
 
 
-  ### Examples
+# Examples
 
-  Tests
-   - style/no style
-   - scaled sigs
-   - no cats, list cats, map cats, both with wildcards
-
-
-  ### Examples
+In `cd test` directory:
 
 
 - `fit_diag_A.root`
   - Simple
-  ```
+  ```bash
   combine_postfits -i fitDiags/fit_diag_A.root -o outs/plots_A_all --data --unblind  -p
   ```
 
   - Customized
-  ```
+  ```bash
   combine_postfits -i fitDiags/fit_diag_A.root -o outs/plots_A --style styles/style_A.yml --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass:ptbin*pass2016;fail:ptbin*fail*;muCRpass:muonCRpass2016;muCRfail:muonCRfail2016' --bkgs top,other,wqq,wcq,zqq,zbb,hbb -vv --project-signal 200,0 -p
   ```
 
 - `fit_diag_Abig.root`
   - Simple
-  ```
+  ```bash
   combine_postfits -i fitDiags/fit_diag_Abig.root -o outs/plots_Abig_all --data --unblind  -p
   ```
 
   - Customized
-  ```
+  ```bash
   combine_postfits -i fitDiags/fit_diag_Abig.root -o outs/plots_Abig --style styles/style_A.yml --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass16:ptbin*pass2016;fail16:ptbin*fail2016;pass17:ptbin*pass2017;fail17:ptbin*fail2017;pass18:ptbin*pass2018;fail18:ptbin*fail2018;pass:ptbin*pass*;fail:ptbin*fail*;muCRpass16:muonCRpass2016;muCRfail16:muonCRfail2016;muCRpass17:muonCRpass2017;muCRfail17:muonCRfail2017;muCRpass18:muonCRpass2018;muCRfail18:muonCRfail2018' --bkgs top,other,wqq,wcq,zqq,zbb,hbb -vv --project-signal 200,0 -p
+  ```
+
+- `fit_diag_B.root`
+  - Simple
+  ```bash
+  combine_postfits -i fitDiags/fit_diag_B.root -o outs/plots_B_all --MC  -p
+  ```
+
+  - Customized
+  ```bash
+  combine_postfits -i fitDiags/fit_diag_B.root --data --unblind -o outs/plots_B --style styles/style_B.yml  --xlabel 'Jet $m_{SD}$' --sigs b150,m150 --project-signals 2,2 --rmap 'm150:r_q,b150:r_b' --bkgs top,vlep,wqq,zqq,zbb,hbb --onto 2017_qcd --cats 'fail:ptbin*fail;passlow:ptbin*high*;passhigh:ptbin*passlow*' -v -p
+
+  # 'mufail:muonCRfail;mupasslow:muonCRpasslowbvl;mupasshigh:muonCRpasshighbvl'
+  ```
+
+
+
+  - `fit_diag_C.root`
+  - Simple
+  ```bash
+  combine_postfits -i fitDiags/fit_diag_C.root -o outs/plots_C_all --toys  -p
+  ```
+
+  - Customized
+  ```bash
+  combine_postfits -i fitDiags/fit_diag_C.root -o outs/plots_C --toys  --style styles/style_C.yml --xlabel 'Jet $m_{reg}$'
   ```
   
 - `fit_diag_D.root`
   - Simple
-  ```
+  ```bash
   combine_postfits -i fitDiags/fit_diag_D.root -o outs/plots_D_all --MC  -p
   ```
 
   - Customized
-  ```
+  ```bash
   combine_postfits -i fitDiags/fit_diag_D.root -o outs/plots_D --MC --style styles/style_D.yml --onto qcd --sigs VH --bkgs qcd,top,Wjets,Zjets,VV,H  --rmap 'VH:rVH' --project-signals 3 --xlabel 'Jet $m_{SD}$' -p
   ```

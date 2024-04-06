@@ -1,5 +1,4 @@
 import os
-import ROOT as r
 import numpy as np
 import uproot
 import logging
@@ -9,6 +8,7 @@ import matplotlib
 from multiprocessing import Process, Semaphore
 import time
 import fnmatch
+import importlib.util
 
 matplotlib.use("Agg")
 import mplhep as hep
@@ -28,6 +28,12 @@ from rich.progress import (
     SpinnerColumn
 )
 from rich.prompt import Confirm
+
+
+ROOT_spec = importlib.util.find_spec("ROOT")
+ROOT_AVAILABLE = spam_spec is not None
+if ROOT_AVAILABLE:
+    import ROOT as r
 
 hep.style.use("CMS")
 
@@ -206,6 +212,12 @@ def main():
         type=str,
         help="CMS Label",
     )
+    parser.add_argument(
+        "--dpi",
+        default=300,
+        type=int,
+        help="dpi for png format",
+    )
 
     # Debug
     parser.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
@@ -256,7 +268,10 @@ def main():
 
     # Make plots
     fd = uproot.open(args.input)
-    rfd = r.TFile.Open(args.input)
+    if ROOT_AVAILABLE:
+        rfd = r.TFile.Open(args.input)
+    else:
+        rfd = None
     if args.style is not None:
         with open(args.style, "r") as stream:
             style = yaml.safe_load(stream)
@@ -415,11 +430,11 @@ def main():
 
                 # Save
                 for fmt in format:
-                    logging.debug(f"  Saving: '{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}'")
+                    logging.debug(f"Saving: '{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}'")
                     fig.savefig(
                         f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,
-                        dpi=300,
+                        dpi=args.dpi,
                         bbox_inches="tight",
                         # transparent=True,
                     )

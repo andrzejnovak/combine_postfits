@@ -31,7 +31,7 @@ from rich.prompt import Confirm
 
 
 ROOT_spec = importlib.util.find_spec("ROOT")
-ROOT_AVAILABLE = spam_spec is not None
+ROOT_AVAILABLE = ROOT_spec is not None
 if ROOT_AVAILABLE:
     import ROOT as r
 

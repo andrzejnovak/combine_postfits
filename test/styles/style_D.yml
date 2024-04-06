@@ -1,0 +1,91 @@
+data:
+  label: Data
+  color: black
+  hatch: null
+  yield: 0
+total_signal:
+  label: Total Signal
+  color: red
+  hatch: null
+  yield: 0
+qcd:
+  label: QCD
+  color: '#94a4a2'
+  hatch: null
+
+Wjets:
+  label: $W\rightarrow q\bar{q}$
+  color: '#bd1f01'
+  hatch: null
+Zjets:
+  label: $Z\rightarrow q\bar{q}$
+  color: '#e76300'
+  hatch: null
+VV:
+  label: VV
+  color: '#ffa90e'
+  hatch: null
+
+top:
+  label: Top
+  color: '#94a4a2'
+  hatch: null
+  contains:
+  - ttbar
+  - singlet
+singlet:
+  label: singlet
+  color: '#832db6'
+  hatch: null
+ttbar:
+  label: ttbar
+  color: '#92dadd'
+  hatch: null
+
+VH:
+  label: VH
+  color: '#3f90da'
+  hatch: null
+  contains:
+  - WH
+  - ZH
+WH:
+  label: WH
+  color: '#a96b59'
+  hatch: null
+ZH:
+  label: ZH
+  color: '#e76300'
+  hatch: null
+
+H:
+  label: H(other)
+  color: '#92dadd'
+  hatch: null
+  contains:
+  - ggF
+  - VBFDipoleRecoilOn
+  - ttH
+ggF:
+  label: ggF
+  color: '#b9ac70'
+  hatch: null
+VBFDipoleRecoilOn:
+  label: VBF
+  color: '#717581'
+  hatch: null
+ttH:
+  label: ttH
+  color: '#9dc6ec'
+  hatch: null
+
+
+
+total:
+  label: total
+  color: '#fecf79'
+  hatch: null
+total_background:
+  label: total_background
+  color: '#fd320c'
+  hatch: null

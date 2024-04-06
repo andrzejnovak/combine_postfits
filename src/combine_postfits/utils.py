@@ -29,8 +29,9 @@ def adjust_lightness(color, amount=0.5):
     except:
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
-
+    rgb = colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+    scaled_rgb = tuple([int(x * 255) for x in rgb])
+    return "#{0:02x}{1:02x}{2:02x}".format(*scaled_rgb)
 
 def module_exists(module_name):
     return module_name in (name for loader, name, ispkg in iter_modules())

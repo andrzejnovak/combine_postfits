@@ -1,0 +1,77 @@
+data:
+  label: Data
+  color: black
+  hatch: null
+qcd:
+  label: QCD
+  color: '#94a4a2'
+  hatch: null
+total:
+  label: total
+  color: '#3f90da'
+  hatch: null
+total_signal:
+  label: total_signal
+  color: '#ffa90e'
+  hatch: null
+total_background:
+  label: total_background
+  color: '#bd1f01'
+  hatch: null
+
+zcc:
+  label: $Z\rightarrow c\bar{c}$
+  color: '#d62828'
+  hatch: null
+zbb:
+  label: $Z\rightarrow b\bar{b}$
+  color: '#f77f00'
+  hatch: null
+zqq:
+  label: $Z\rightarrow q\bar{q}$
+  color: '#fcbf49'
+  hatch: null
+wcq:
+  label: $W\rightarrow c\bar{q}$
+  color: '#588157'
+  hatch: null
+wqq:
+  label: $W\rightarrow q\bar{q}$
+  color: '#84a98c'
+  hatch: null
+
+hbb:
+  label: $H\rightarrow b\bar{b}$
+  color: '#4E5A7E'
+  hatch: null
+  contains:
+  - zhbb
+  - whbb
+  - vbfhbb
+  - hbb
+hcc: 
+  label: $H\rightarrow c\bar{c}$
+  color: '#3a86ff'
+  hatch: null
+  contains:
+  - zhcc
+  - whcc
+  - vbfhcc
+  - hcc
+
+top:
+  label: Top
+  color: 'teal'
+  hatch: /////
+  contains:
+  - tqq
+  - stqq
+
+other: 
+  label: $Other$
+  color: 'grey'
+  hatch: \\\\\
+  contains:
+  - wln
+  - zll
+  - vvqq 

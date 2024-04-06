@@ -25,6 +25,7 @@ from rich.progress import (
     MofNCompleteColumn,
     TimeRemainingColumn,
     TimeElapsedColumn,
+    SpinnerColumn
 )
 from rich.prompt import Confirm
 
@@ -98,7 +99,7 @@ def main():
         "--project_signals",
         default=None,
         dest="project_signals",
-        help="Comma-separated list of values of equal length with --sigs, e.g. `1,1`",
+        help="Comma-separated list of values of equal length with --sigs, e.g. `1,1`.",
     )
     parser.add_argument(
         "--bkgs",
@@ -207,8 +208,8 @@ def main():
     )
 
     # Debug
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
-    parser.add_argument("--debug", "-vv", action="store_true", help="Debug logging")
+    parser.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
+    parser.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
     parser.add_argument(
         "-p",
         action="store_true",
@@ -255,10 +256,7 @@ def main():
     rfd = r.TFile.Open(args.input)
     if args.style is not None:
         with open(args.style, "r") as stream:
-            try:
-                style = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
+            style = yaml.safe_load(stream)
     else:
         style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
         logging.warning(
@@ -327,12 +325,14 @@ def main():
             # list
             else:
                 channels = sum([fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")], [])
+                print(args.cats.split(","), available_channels)
                 blinds = [
                     True if c in blind_cats else False for c in channels
                 ]
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
+        assert len(channels) > 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
@@ -346,16 +346,18 @@ def main():
     _procs = []
     with Progress(
         TextColumn("[progress.description]{task.description}"),
+        SpinnerColumn(),
         BarColumn(),
         MofNCompleteColumn(),
         TimeRemainingColumn(),
         TimeElapsedColumn(),
     ) as progress:
-        prog_str = (
-            "[red]Plotting (parallel): " if args.multiprocessing else "[red]Plotting: "
+        prog_str_fmt = (
+            "[red]Plotting ({} jobs): " if args.multiprocessing else "[red]Plotting: "
         )
+        prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
-        semaphore = Semaphore(20 if args.multiprocessing else 0)
+        semaphore = Semaphore(10 if args.multiprocessing else 0)
         for fittype, channel, blind, sname in zip(
             all_types, all_channels, all_blinds, all_savenames
         ):
@@ -377,7 +379,7 @@ def main():
                     clipx=args.clipx,
                     fitDiag_root=rfd,
                     style=style,
-                    cat_info=1,
+                    cat_info=1 if len(channel) < 6 else {s.split(":")[0]:s.split(":")[1] for s in args.cats.split(";")}[sname],
                     chi2=True,
                 )
                 # Styling
@@ -425,6 +427,11 @@ def main():
                 _procs.append(p)
                 p.start()
                 time.sleep(0.1)
+                
+                n_running = sum([p.is_alive() for p in _procs])
+                progress.update(
+                    prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
+                )
             else:
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)
@@ -432,10 +439,10 @@ def main():
             while sum([p.is_alive() for p in _procs]) > 0:
                 n_running = sum([p.is_alive() for p in _procs])
                 progress.update(
-                    prog_plotting, completed=len(_procs) - n_running, refresh=True
+                    prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
                 )
                 time.sleep(0.1)
-        progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True)
+        progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True, description=prog_str_fmt.format(0))
 
 
 if __name__ == "__main__":

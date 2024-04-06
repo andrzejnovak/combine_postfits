@@ -56,7 +56,7 @@ def plot(
     | None = None,  # {new_key: [old_key1, old_key2]} overwrites settings in style yaml
     clipx: bool = False,  # Clip edge bins when empty
     cat_info: bool
-    | int = 2,  # Number of cats to display per line. Set ``False`` to disable cat info
+    | int | str = 2,  # Number of category names to display per line. Set ``False`` to disable cat info. Set to str to display custom text.
     chi2: bool = False,  # Calculated and display chi2 of data to total shapes
 ) -> tuple:
     # Prep
@@ -130,10 +130,10 @@ def plot(
         if np.any(
             _hobj.values() < 0
         ):  # negative hists
-            _th = 0.02 * np.min(_hobj.values())
+            _th = 0.01 * np.min(_hobj.values())
             non_zero_indices = np.where(_hobj.values() < _th)[0]
         else:  # positive hists
-            _th = 0.02 * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
+            _th = 0.01 * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
             non_zero_indices = np.where(_hobj.values() > _th)[0]
         if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
             logging.debug(
@@ -150,7 +150,7 @@ def plot(
     # Remove tiny
     if remove_tiny:
         if isinstance(remove_tiny, str) and remove_tiny.endswith("%"):
-            _th = float(remove_tiny[:-1]) * 0.01 * np.sum(data.values())
+            _th = float(remove_tiny[:-1]) * 0.005 * np.sum(data.values())
         elif remove_tiny is True:
             _th = 0.05 * np.sum(data.values())
         elif np.isnumeric(remove_tiny):
@@ -246,6 +246,7 @@ def plot(
 
     ###############
     # Plotting main
+    # logging.debug(f"  DEBUG: Main plotting")
     fig, (ax, rax) = plt.subplots(
         2, 1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
     )
@@ -306,6 +307,7 @@ def plot(
             zorder=4,
         )
 
+    # logging.debug(f"  DEBUG: Projections")
     # Ploting projection
     if len(project) != 0:
         logging.info(f"  Projecting on x-axis: {','.join(project)}")
@@ -371,6 +373,7 @@ def plot(
                 lw=2,
             )
 
+    # logging.debug(f"  DEBUG: Ratios")
     #########
     # Subplot
     if not blind:
@@ -442,6 +445,7 @@ def plot(
             f"  Bkg. Unc. in {np.sum(~good_yerr_mask)} bins is too large ( > err_th) and will be set to 0. Full uncertainty is: {yerr_nom}"
         )
 
+    # logging.debug(f"  DEBUG: Styling")
     #########
     # Styling
     ax.legend(ncol=2)
@@ -480,6 +484,7 @@ def plot(
     rax.axhline(0, color="gray", ls="--")
     rax.set_ylabel(r"$\frac{Data-Bkg}{\sigma_{Data}}$", y=0.5)
 
+    # logging.debug(f"  DEBUG: Legend format")
     # Reformatting legend
     existing_keys = ax.get_legend_handles_labels()[-1]
     for key in existing_keys:
@@ -500,7 +505,7 @@ def plot(
         labelspacing=0.4,
         columnspacing=1.5,
     )
-    hep.yscale_legend(ax)
+    hep.yscale_legend(ax, soft_fail=True)
     if fit_type == "prefit":
         leg.set_title(title=fit_type.capitalize(), prop={"size": "small"})
     else:
@@ -561,13 +566,15 @@ def plot(
         labelspacing=0.4,
         columnspacing=1.5,
     )
-    hep.yscale_legend(rax)
+    hep.yscale_legend(rax, soft_fail=True)
     #     handles, labels = rax.get_legend_handles_labels()
     #     rax.legend(reversed(handles), reversed(labels), loc='upper right', ncol=2)
 
+    # logging.debug(f"  DEBUG: Cat info")
     if cat_info:
         from matplotlib.offsetbox import AnchoredText
-
+        if isinstance(cat_info, str):
+            cats, cat_info = [cat_info], 1
         at = AnchoredText(
             f"Categories: \n{format_categories(cats, cat_info)}",
             loc="upper left",
@@ -576,7 +583,7 @@ def plot(
             frameon=False,
         )
         ax.add_artist(at)
-        hep.plot.yscale_anchored_text(ax)
+        hep.plot.yscale_anchored_text(ax, soft_fail=True)
 
     if chi2:
         chi2_raw = abs(data.values() - tot.values()) ** 2 / data.values()
@@ -593,8 +600,9 @@ def plot(
             frameon=False,
         )
         rax.add_artist(at)
-        hep.plot.yscale_anchored_text(rax)
+        hep.plot.yscale_anchored_text(rax, soft_fail=True)
 
     ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
+    # logging.debug(f"  DEBUG: Main plotting done")
     return fig, (ax, rax)

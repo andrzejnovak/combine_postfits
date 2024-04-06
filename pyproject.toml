@@ -26,7 +26,7 @@ dependencies = [
   "rich",
   "numpy",
   "uproot",
-  "mplhep>=0.3.42",
+  "mplhep>=0.3.45",
   "hist",
   "scipy"
 ]

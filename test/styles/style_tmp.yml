@@ -1,0 +1,48 @@
+data:
+  label: Data
+  color: black
+  hatch: null
+total_signal:
+  label: Signal
+  color: '#e42536'
+  hatch: /////
+qcd:
+  label: QCD
+  color: '#94a4a2'
+  hatch: null
+dy:
+  label: dy
+  color: '#3f90da'
+  hatch: null
+htt125:
+  label: htt125
+  color: '#ffa90e'
+  hatch: null
+multijet:
+  label: multijet
+  color: '#bd1f01'
+  hatch: null
+phitt125:
+  label: phitt125
+  color: '#832db6'
+  hatch: null
+top:
+  label: top
+  color: '#a96b59'
+  hatch: null
+total:
+  label: total
+  color: '#e76300'
+  hatch: null
+total_background:
+  label: total_background
+  color: '#b9ac70'
+  hatch: null
+total_covar:
+  label: total_covar
+  color: '#717581'
+  hatch: null
+wlnu:
+  label: wlnu
+  color: '#92dadd'
+  hatch: null

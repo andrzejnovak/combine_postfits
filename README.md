@@ -97,7 +97,7 @@ In `cd test` directory:
 
 
 
-  - `fit_diag_C.root`
+- `fit_diag_C.root`
   - Simple
   ```bash
   combine_postfits -i fitDiags/fit_diag_C.root -o outs/plots_C_all --toys  -p

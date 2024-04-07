@@ -38,6 +38,17 @@ if ROOT_AVAILABLE:
 hep.style.use("CMS")
 
 
+def time_check(progress, procs, limit=5):
+    if progress.tasks[0].elapsed//60 >= limit:
+        logging.error(f"Plotting taking longer than {limit} minutes. Likely and issue with file opening or too many figures. Try rerunning or running with `--p 0`.")
+        remaining_procs = [p for p in procs if p.is_alive()]
+        logging.error(f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}")
+        for p in remaining_procs:
+            p.terminate()
+        import sys
+        sys.exit()
+
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -218,6 +229,7 @@ def main():
         type=int,
         help="dpi for png format",
     )
+    parser.add_argument("--noroot", action="store_true", help="Skip ROOT dependency")
 
     # Debug
     parser.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
@@ -268,7 +280,7 @@ def main():
 
     # Make plots
     fd = uproot.open(args.input)
-    if ROOT_AVAILABLE:
+    if ROOT_AVAILABLE and not args.noroot:
         rfd = r.TFile.Open(args.input)
     else:
         rfd = None
@@ -443,7 +455,7 @@ def main():
 
             if args.multiprocessing > 0:
                 semaphore.acquire()
-                p = Process(target=mod_plot, args=(semaphore,))
+                p = Process(target=mod_plot, args=(semaphore,), name=sname)
                 _procs.append(p)
                 p.start()
                 time.sleep(0.1)
@@ -452,6 +464,7 @@ def main():
                 progress.update(
                     prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
                 )
+                time_check(progress, _procs, 6)
             else:
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)
@@ -462,6 +475,8 @@ def main():
                     prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
                 )
                 time.sleep(0.1)
+                
+                time_check(progress, _procs, 6)
         progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True, description=prog_str_fmt.format(0))
 
 

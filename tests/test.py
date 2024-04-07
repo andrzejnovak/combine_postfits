@@ -27,5 +27,5 @@ test_tuples = [pytest.param(example, fittype, name,
 def test_image(image_diff, example, name, fittype):
     image: Image or str or bytes = f"{path}/tests/baseline/{example}/{fittype}/{name.replace('prefit', fittype)}"
     image2: Image or str or bytes = f"{path}/tests/outs/{example}/{fittype}/{name.replace('prefit', fittype)}"
-    assert image_diff(image, image2, threshold=0.2)            
+    assert image_diff(image, image2, threshold=0)            
             

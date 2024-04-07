@@ -252,7 +252,7 @@ def plot(
 
     ###############
     # Plotting main
-    # logging.debug(f"  DEBUG: Main plotting")
+    logging.debug(f"  DEBUG: Main plotting")
     fig, (ax, rax) = plt.subplots(
         2, 1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True
     )
@@ -313,7 +313,7 @@ def plot(
             zorder=4,
         )
 
-    # logging.debug(f"  DEBUG: Projections")
+    logging.debug(f"  DEBUG: Projections")
     # Ploting projection
     if len(project) != 0:
         logging.info(f"  Projecting on x-axis: {','.join(project)}")
@@ -379,7 +379,7 @@ def plot(
                 lw=2,
             )
 
-    # logging.debug(f"  DEBUG: Ratios")
+    logging.debug(f"  DEBUG: Ratios")
     #########
     # Subplot
     if not blind:
@@ -451,7 +451,7 @@ def plot(
             f"  Bkg. Unc. in {np.sum(~good_yerr_mask)} bins is too large ( > err_th) and will be set to 0. Full uncertainty is: {yerr_nom}"
         )
 
-    # logging.debug(f"  DEBUG: Styling")
+    logging.debug(f"  DEBUG: Styling")
     #########
     # Styling
     ax.legend(ncol=2)
@@ -490,7 +490,7 @@ def plot(
     rax.axhline(0, color="gray", ls="--")
     rax.set_ylabel(r"$\frac{Data-Bkg}{\sigma_{Data}}$", y=0.5)
 
-    # logging.debug(f"  DEBUG: Legend format")
+    logging.debug(f"  DEBUG: Legend format")
     # Reformatting legend
     existing_keys = ax.get_legend_handles_labels()[-1]
     for key in existing_keys:
@@ -576,7 +576,7 @@ def plot(
     #     handles, labels = rax.get_legend_handles_labels()
     #     rax.legend(reversed(handles), reversed(labels), loc='upper right', ncol=2)
 
-    # logging.debug(f"  DEBUG: Cat info")
+    logging.debug(f"  DEBUG: Cat info")
     if cat_info:
         from matplotlib.offsetbox import AnchoredText
         if isinstance(cat_info, str):
@@ -610,5 +610,5 @@ def plot(
 
     ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
-    # logging.debug(f"  DEBUG: Main plotting done")
+    logging.debug(f"  DEBUG: Main plotting done")
     return fig, (ax, rax)

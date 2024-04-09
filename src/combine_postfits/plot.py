@@ -210,8 +210,8 @@ def plot(
     for list_in, list_out in zip([sigs, bkgs], [_sigs, _bkgs]):
         for key in list_in:
             if key not in style:
-                logging.warning(
-                    f"  Hist '{key}' in passed style dict. Available keys include: '{list(style.keys())}'."
+                raise KeyError(
+                    f"Hist '{key}' in passed style dict. Available keys include: {list(style.keys())}."
                 )
             if key not in hist_keys:
                 logging.warning(
@@ -329,6 +329,8 @@ def plot(
     if rmap is None:
         if len(sigs) == 1:
             rmap = {sigs_original[0]: "r"}
+        else:
+            logging.warning(f"  No `--rmap` passed. Automatic inference wasn't possible. Signal strengths won't be shown.")
     if project_signal is not None:
         _rs = dict(zip(sigs_original, [1] * len(sigs_original)))
         if fit_type == "prefit":

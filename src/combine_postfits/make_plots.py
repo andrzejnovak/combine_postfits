@@ -28,7 +28,8 @@ from rich.progress import (
     SpinnerColumn
 )
 from rich.prompt import Confirm
-
+from rich.traceback import install
+install(show_locals=False)
 
 ROOT_spec = importlib.util.find_spec("ROOT")
 ROOT_AVAILABLE = ROOT_spec is not None
@@ -313,6 +314,7 @@ def main():
     if args.rmap is not None:
         kvs = args.rmap.split(",")
         rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
+
     else:
         rmap = None
     if args.sigs is not None:
@@ -355,7 +357,6 @@ def main():
             # list
             else:
                 channels = sum([fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")], [])
-                print(args.cats.split(","), available_channels)
                 blinds = [
                     True if c in blind_cats else False for c in channels
                 ]

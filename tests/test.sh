@@ -1,4 +1,4 @@
-P=20
+P=0
 DPI=50
 OPTS="--noroot"
 

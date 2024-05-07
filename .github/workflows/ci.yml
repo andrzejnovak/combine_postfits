@@ -1,5 +1,5 @@
 env:
-  DPI: 50
+  DPI: 100
   P: 0
 name: CI
 

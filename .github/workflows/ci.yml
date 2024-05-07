@@ -48,6 +48,14 @@ jobs:
         python test.py
         python -m pytest -rsx -n auto test.py
 
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
+        retention-days: 1
+        path: .tests
+
   testAbig:
     name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
@@ -85,6 +93,14 @@ jobs:
         python test.py
         python -m pytest -rsx -n auto test.py
 
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
+        retention-days: 1
+        path: .tests
+
   testB:
     name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
@@ -121,7 +137,15 @@ jobs:
         cd tests
         python test.py
         python -m pytest -rsx -n auto test.py
- 
+
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
+        retention-days: 1
+        path: .tests
+
   testC:
     name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
@@ -158,6 +182,14 @@ jobs:
         cd tests
         python test.py
         python -m pytest -rsx -n auto test.py
+
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
+        retention-days: 1
+        path: .tests
 
   testD:
     name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
@@ -196,4 +228,10 @@ jobs:
         python test.py
         python -m pytest -rsx -n auto test.py
 
-      
+    - name: Upload pytest test results
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
+        retention-days: 1
+        path: .tests

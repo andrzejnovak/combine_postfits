@@ -610,7 +610,7 @@ def plot(
         rax.add_artist(at)
         hep.plot.yscale_anchored_text(rax, soft_fail=True)
 
-    ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
+    ax.set_ylim(0, ax.get_ylim()[-1] * 1.05)
 
     logging.debug(f"  DEBUG: Main plotting done")
     return fig, (ax, rax)

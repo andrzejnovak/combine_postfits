@@ -264,7 +264,7 @@ def main():
     if not args.pseudo and not args.unblind:
         unblind_conf = Confirm.ask(
             "Option `--blind` is not set, while plotting with `--data`. "
-            "Are you sure you want to unblind? (pass `--unblind` to suppress this prompt)"
+            "Hi Eric, are you sure you want to unblind? (pass `--unblind` to suppress this prompt)"
         )
         assert unblind_conf, "Unblind option not confirmed. Exiting."
 

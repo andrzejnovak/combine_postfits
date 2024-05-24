@@ -89,7 +89,7 @@ def main():
     parser.add_argument(
         "--fit",
         default="all",
-        choices={"prefit", "fit_s", "all"},
+        choices={"prefit", "fit_s", "fit_b",    "all"},
         dest="fit",
         help="Shapes to plot",
     )

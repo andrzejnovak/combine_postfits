@@ -112,7 +112,7 @@ def plot(
             )
 
     # Soft-fail on missing hist
-    def hist_dict_fcn(name, raw=False, global_scale=False, th=0.01):
+    def hist_dict_fcn(name, raw=False, global_scale=True, th=0.003):
         '''
         raw: return raw hist without any modifications
         global_scale: when true will clip small values based on global max, else based on hist max
@@ -211,7 +211,7 @@ def plot(
         for key in list_in:
             if key not in style:
                 raise KeyError(
-                    f"Hist '{key}' in passed style dict. Available keys include: {list(style.keys())}."
+                    f"Hist '{key}' not in style dict. Available keys include: {list(style.keys())}."
                 )
             if key not in hist_keys:
                 logging.warning(
@@ -289,10 +289,10 @@ def plot(
             for k, h in zip([onto] + bkgs + sigs, _hatch)
         ]
         _linewidth = [2] + [
-            2 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])
+            0 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])
         ]
         hep.histplot(
-            [hist_dict_fcn(onto), *[hist_dict_fcn(k) for k in bkgs + sigs]],
+            [hist_dict_fcn(onto), *[hist_dict_fcn(k, global_scale=False, th=0.02) for k in bkgs + sigs]],
             ax=ax,
             label=["_", *(bkgs + sigs)],
             stack=True,
@@ -360,7 +360,7 @@ def plot(
         logging.info(
             f"  Projecting signal on x-axis: {'; '.join([f'{k}:{v:.2f}' for k, v in _rs.items()])}"
         )
-        for sig in sigs_original:
+        for j, sig in enumerate(sigs_original):
             if sig_dicts[sig] == 0 or sig not in hist_keys:
                 continue
             _scaled_sig = hist_dict_fcn(sig) * sig_dicts[sig] / _rs[sig]
@@ -377,7 +377,7 @@ def plot(
                 histtype="step",
                 label=_p_label,
                 yerr=False,
-                ls="--",
+                ls='dashed',
                 lw=2,
             )
 
@@ -415,7 +415,7 @@ def plot(
             "none" if h not in ["none", None] else style[k]["color"]
             for k, h in zip(sigs_original, _hatch)
         ]
-        _lw = [2 if h not in ["none", None] else 0 for h in _hatch]
+        _lw = [0 if h not in ["none", None] else 0 for h in _hatch]
         hep.histplot(
             [hist_dict_fcn(sig, global_scale=False, th=0.05) / np.sqrt(data.variances()) for sig in sigs_original],
             ax=rax,
@@ -557,8 +557,9 @@ def plot(
                 ax.text(
                     x,
                     y,
-                    "  ".join(mu_strs),
-                    fontsize="xx-small",
+                    # "  ".join(mu_strs),
+                    "\n".join(mu_strs),
+                    fontsize="x-small",
                     ha="center",
                     va="top",
                     transform=ax.transAxes,
@@ -566,28 +567,31 @@ def plot(
                 ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
     # Ratio legend
+    rax.legend(ncol=3) #dummy legend
+    handles, labels = ax.get_legend_handles_labels()
     rax.legend(
         loc="upper right",
         ncol=3,
         markerscale=0.8,
-        fontsize=_legend_fontsize,
+        fontsize="x-small" if len(labels) > 2 else _legend_fontsize,
         labelspacing=0.4,
         columnspacing=1.5,
     )
     hep.yscale_legend(rax, soft_fail=True)
-    #     handles, labels = rax.get_legend_handles_labels()
-    #     rax.legend(reversed(handles), reversed(labels), loc='upper right', ncol=2)
 
     logging.debug(f"  DEBUG: Cat info")
     if cat_info:
         from matplotlib.offsetbox import AnchoredText
         if isinstance(cat_info, str):
             cats, cat_info = [cat_info], 1
+            cat_text = f"{format_categories(cats, cat_info)}"
+        else:
+            cat_text = f"Categories: \n{format_categories(cats, cat_info)}"
         at = AnchoredText(
-            f"Categories: \n{format_categories(cats, cat_info)}",
+            cat_text,
             loc="upper left",
             pad=0.8,
-            prop=dict(size="x-small", ha="center"),
+            prop=dict(size="x-small", ha="center", linespacing=1.5),
             frameon=False,
         )
         ax.add_artist(at)

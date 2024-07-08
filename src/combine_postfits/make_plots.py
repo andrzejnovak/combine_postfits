@@ -219,10 +219,23 @@ def main():
         help="Hide zeroth tick on the y-axis.",
     )
     parser.add_argument(
+        "--chi2",
+        type=str2bool,
+        default="True",
+        choices={True, False},
+        help="Don't show chi2 indicator",
+    )
+    parser.add_argument(
         "--cmslabel",
         default="Private Work",
         type=str,
         help="CMS Label",
+    )
+    parser.add_argument(
+        "--catlabels",
+        default=None,
+        type=str,
+        help="Category label to replace automated labelling. To pass per-category label, use `;` separator.",
     )
     parser.add_argument(
         "--dpi",
@@ -327,6 +340,7 @@ def main():
     all_blinds = []
     all_types = []
     all_savenames = []
+    all_labels = []
     for fit_type in fit_types:
         # all channels
         available_channels = [
@@ -338,6 +352,7 @@ def main():
             channels = [[c] for c in available_channels]
             blinds = [True if c[0] in blind_cats else False for c in channels]
             savenames = [c for c in available_channels]
+            labels = [None for c in available_channels]
             logging.debug(f"Plotting channels: {channels}")
         # Parse --cats, either mapping or list
         else:
@@ -363,16 +378,23 @@ def main():
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
+            if ";" in args.catlabels:
+                labels = args.catlabels.split(";")
+            else:
+                labels = [args.catlabels for c in channels]
+            labels = ["\n".join(lab.split("\\n")) for lab in labels]  # hacky but needed to pass \n from cmdline
         assert len(channels) != 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
         all_types.extend([fit_type] * len(channels))
         all_savenames.extend(savenames)
+        all_labels.extend(labels)
     logging.debug(f"All Channels: {all_channels}")
     logging.debug(f"All Blinds: {all_blinds}")
     logging.debug(f"All Types: {all_types}")
     logging.debug(f"All Savenames: {all_savenames}")
+    logging.debug(f"All Labels: {all_labels}")
 
     _procs = []
     with Progress(
@@ -389,10 +411,12 @@ def main():
         prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
         semaphore = Semaphore(args.multiprocessing)
-        for fittype, channel, blind, sname in zip(
-            all_types, all_channels, all_blinds, all_savenames
+        for fittype, channel, blind, sname, label in zip(
+            all_types, all_channels, all_blinds, all_savenames, all_labels
         ):
             # Wrap it in a function to enable parallel processing
+            if label is None:
+                label = 1 if len(channel) < 6 else {s.split(":")[0]:s.split(":")[1] for s in args.cats.split(";")}[sname]
             def mod_plot(semaphore=None):
                 fig, (ax, rax) = plot.plot(
                     fd,
@@ -410,8 +434,8 @@ def main():
                     clipx=args.clipx,
                     fitDiag_root=rfd,
                     style=style,
-                    cat_info=1 if len(channel) < 6 else {s.split(":")[0]:s.split(":")[1] for s in args.cats.split(";")}[sname],
-                    chi2=True,
+                    cat_info=label,
+                    chi2=args.chi2,
                 )
                 if fig is None:
                     return None
@@ -419,7 +443,7 @@ def main():
                 if args.xlabel is not None:
                     rax.set_xlabel(args.xlabel)
                 if args.ylabel is not None:
-                    rax.set_ylabel(args.xlabel)
+                    ax.set_ylabel(args.ylabel)
                 hep.cms.label(
                     args.cmslabel,
                     data=not args.pseudo,
@@ -428,6 +452,8 @@ def main():
                     pub=args.pub,
                     year=args.year,
                 )
+                # ax.semilogy()
+                # ax.set_ylim(10, None)
 
                 # Sci notat
                 leading_dig_max, decimal_dig_max = 0, 0

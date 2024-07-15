@@ -9,6 +9,7 @@ import pprint
 import numpy as np
 from scipy import stats
 import mplhep as hep
+from copy import deepcopy
 
 from .utils import cmap10
 from .utils import extract_mergemap, fill_colors
@@ -121,11 +122,11 @@ def plot(
         _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()]) 
         if name not in hist_dict:
             logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
-            _hobj = hist_dict[list(hist_dict.keys())[0]].copy()
+            _hobj = deepcopy(hist_dict[list(hist_dict.keys())[0]])
             _hobj.view().value *= 0
             _hobj.view().variance *= 0
             return _hobj
-        _hobj = hist_dict[name].copy()
+        _hobj = deepcopy(hist_dict[name])
         if raw:
             return _hobj
         # Convert zeros to nans for plotting (lw>0)
@@ -363,7 +364,7 @@ def plot(
         for j, sig in enumerate(sigs_original):
             if sig_dicts[sig] == 0 or sig not in hist_keys:
                 continue
-            _scaled_sig = hist_dict_fcn(sig) * sig_dicts[sig] / _rs[sig]
+            _scaled_sig = hist_dict_fcn(sig, global_scale=False, th=0.05) * sig_dicts[sig] / _rs[sig]
             _p_label = (
                 style[sig]["label"]
                 if sig_dicts[sig] == 1
@@ -465,8 +466,10 @@ def plot(
         if len(_bins) > 2:
             nonzero = _bins[:-1][_h > 0]
             ax.set_xlim(nonzero[0], nonzero[-1])
+            rax.set_xlim(nonzero[0], nonzero[-1])
         else:  # Single bin
             ax.set_xlim(_bins[0], _bins[-1])
+            rax.set_xlim(_bins[0], _bins[-1])
     else:
         ax.set_xlim(data.axes[0].edges[0], data.axes[0].edges[-1])
 

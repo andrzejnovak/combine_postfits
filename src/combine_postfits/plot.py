@@ -387,15 +387,10 @@ def plot(
     # Subplot/ratio
     if not blind:
         # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
-        _rh = data.values() - tot_bkg.values()
+        rh = data.values() - tot_bkg.values()
         _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
-        print(_lo)
-        print(_hi)
-        print(_rh)
-        _rh[_rh < 0] =_rh[_rh < 0]/_hi[_rh < 0]
-        _rh[_rh > 0] =_rh[_rh > 0]/_lo[_rh > 0]
-        rh = _rh
-        print(rh)
+        rh[rh < 0] = rh[rh < 0]/_hi[rh < 0]
+        rh[rh > 0] = rh[rh > 0]/_lo[rh > 0]
         ## Plotting subplot
         hep.histplot(
             rh,

@@ -389,8 +389,10 @@ def plot(
         # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
         rh = data.values() - tot_bkg.values()
         _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
-        rh[rh < 0] = rh[rh < 0]/_hi[rh < 0]
-        rh[rh > 0] = rh[rh > 0]/_lo[rh > 0]
+        rh_unc = np.zeros_like(rh)
+        rh_unc[rh < 0] = _hi[rh < 0]
+        rh_unc[rh > 0] = _lo[rh > 0]
+        rh /= rh_unc
         ## Plotting subplot
         hep.histplot(
             rh,
@@ -613,7 +615,7 @@ def plot(
 
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            r"$\overline{\chi^2}$ = " + f"{mean_chi2:.2f}",
+            r"$\overline{\chi^2_{no~corr}}$ = " + f"{mean_chi2:.2f}",
             loc="upper left",  # pad=0.8,
             prop=dict(size="x-small", ha="center"),
             frameon=False,

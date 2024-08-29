@@ -384,9 +384,18 @@ def plot(
 
     logging.debug(f"  DEBUG: Ratios")
     #########
-    # Subplot
+    # Subplot/ratio
     if not blind:
-        rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
+        # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
+        _rh = data.values() - tot_bkg.values()
+        _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
+        print(_lo)
+        print(_hi)
+        print(_rh)
+        _rh[_rh < 0] =_rh[_rh < 0]/_hi[_rh < 0]
+        _rh[_rh > 0] =_rh[_rh > 0]/_lo[_rh > 0]
+        rh = _rh
+        print(rh)
         ## Plotting subplot
         hep.histplot(
             rh,

@@ -378,10 +378,13 @@ def main():
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
-            if ";" in args.catlabels:
-                labels = args.catlabels.split(";")
+            if args.catlabels is not None:
+                if ";" in args.catlabels:
+                    labels = args.catlabels.split(";")
+                else:
+                    labels = [args.catlabels for c in channels]
             else:
-                labels = [args.catlabels for c in channels]
+                labels = [c for c in savenames]
             labels = ["\n".join(lab.split("\\n")) for lab in labels]  # hacky but needed to pass \n from cmdline
         assert len(channels) != 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         assert isinstance(channels[0], list)

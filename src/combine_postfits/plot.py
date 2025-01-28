@@ -385,11 +385,11 @@ def plot(
     logging.debug(f"  DEBUG: Ratios")
     #########
     # Subplot/ratio
+    rh_unc = np.zeros_like(data.values())
     if not blind:
         # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
         rh = data.values() - tot_bkg.values()
         _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
-        rh_unc = np.zeros_like(rh)
         rh_unc[rh < 0] = _hi[rh < 0]
         rh_unc[rh > 0] = _lo[rh > 0]
         rh /= rh_unc
@@ -424,7 +424,7 @@ def plot(
         ]
         _lw = [0 if h not in ["none", None] else 0 for h in _hatch]
         hep.histplot(
-            [hist_dict_fcn(sig, global_scale=False, th=0.05) / np.sqrt(data.variances()) for sig in sigs_original],
+            [hist_dict_fcn(sig, global_scale=False, th=0.05) / rh_unc for sig in sigs_original],
             ax=rax,
             facecolor=_facecolor,
             edgecolor=_edgecolor,

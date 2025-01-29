@@ -338,7 +338,7 @@ def plot(
             pass
         elif fitDiag_root is None:
             logging.warning(
-                "Kwarg `fitDiag_root` was not passed. Postfit signal strengths are unavailable. "
+                "  Kwarg `fitDiag_root` was not passed. Postfit signal strengths are unavailable. "
                 "Kwarg `project_signal` will be scaling the postfit distribution: `nominal * r * project_signal`. "
                 "When `fitDiag_root` is available, signal strength gets factored out resulting in: `nominal * project_signal`."
             )
@@ -435,10 +435,21 @@ def plot(
             label=[style[sig]["label"] for sig in sigs_original],
         )
     ## Bkg Unc
+    if np.sum(tot_bkg.variances()) == 0:
+        logging.warning(
+            "  Background uncertainties not available (are 0) in fitDiagnostics file. "
+            "Fit may not have converged correctly."
+        )
+    logging.debug(
+                f"  yerr - bkg variances (raw): {np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) }."
+            )
     yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(
         data.variances() * tot_bkg.axes[0].widths
     )
     yerr = yerr_nom.copy()
+    logging.debug(
+                f"  yerr (raw): {yerr}."
+            )
     yerr[~np.isfinite(yerr_nom)] = 0
     if "rh" in locals():
         err_th = np.max([7, 1.5 * np.max(abs(np.r_[0.01, rh[np.isfinite(rh)]]))])
@@ -446,6 +457,9 @@ def plot(
         err_th = 7
     good_yerr_mask = yerr < err_th  # Data unc is 1 by definiton
     yerr[~good_yerr_mask] = 0
+    logging.debug(
+                f"  yerr (to be plotted): {yerr}."
+            )
     hep.histplot(
         np.zeros_like(data.values()),
         tot_bkg.axes[0].edges,

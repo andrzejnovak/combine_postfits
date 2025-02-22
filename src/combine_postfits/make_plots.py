@@ -220,10 +220,24 @@ def main():
     )
     parser.add_argument(
         "--chi2",
+        dest="chi2",
         type=str2bool,
-        default="True",
+        nargs="?",
+        const="True",
+        default="False",
         choices={True, False},
-        help="Don't show chi2 indicator",
+        help="DEBUG - Show chi2",
+    )
+    # pseudo.add_argument("--residuals", action="store_true", dest="residuals", default=False)
+    parser.add_argument(
+        "--residuals",
+        dest="residuals",
+        type=str2bool,
+        nargs="?",
+        const="True",
+        default="False",
+        choices={True, False},
+        help="DEBUG - Show residuals",
     )
     parser.add_argument(
         "--cmslabel",
@@ -439,6 +453,7 @@ def main():
                     style=style,
                     cat_info=label,
                     chi2=args.chi2,
+                    residuals=args.residuals,
                 )
                 if fig is None:
                     return None

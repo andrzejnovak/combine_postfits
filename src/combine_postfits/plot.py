@@ -8,7 +8,9 @@ import logging
 import pprint
 import numpy as np
 from scipy import stats
+from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
+import hist
 from copy import deepcopy
 
 from .utils import cmap10
@@ -58,7 +60,8 @@ def plot(
     clipx: bool = False,  # Clip edge bins when empty
     cat_info: bool
     | int | str = 2,  # Number of category names to display per line. Set ``False`` to disable cat info. Set to str to display custom text.
-    chi2: bool = False,  # Calculated and display chi2 of data to total shapes
+    chi2: bool = False,  # Calculate and display chi2 of data to total shapes
+    residuals: bool = False,  # Calculated and display chi2 of data to total shapes
 ) -> tuple:
     # Prep
     style = style.copy()
@@ -456,13 +459,10 @@ def plot(
     else:
         err_th = 7
     good_yerr_mask = yerr < err_th  # Data unc is 1 by definiton
-    yerr[~good_yerr_mask] = 0
-    logging.debug(
-                f"  yerr (to be plotted): {yerr}."
-            )
     hep.histplot(
         np.zeros_like(data.values()),
         tot_bkg.axes[0].edges,
+        ax=rax,
         yerr=[yerr, yerr],
         histtype="band",
         label="Bkg. Unc.",
@@ -471,7 +471,7 @@ def plot(
 
     if np.sum(~good_yerr_mask) > 1:
         logging.warning(
-            f"  Bkg. Unc. in {np.sum(~good_yerr_mask)} bins is too large ( > err_th) and will be set to 0. Full uncertainty is: {yerr_nom}"
+            f"  Bkg. Unc. in {np.sum(~good_yerr_mask)} bins is very large ( > {err_th}) this may be pathological. Full uncertainty is: {yerr_nom}"
         )
 
     logging.debug(f"  DEBUG: Styling")
@@ -484,9 +484,10 @@ def plot(
         _h, _bins = data.copy().to_numpy()
         _h += tot_bkg.to_numpy()[0]
         if len(_bins) > 2:
-            nonzero = _bins[:-1][_h > 0]
-            ax.set_xlim(nonzero[0], nonzero[-1])
-            rax.set_xlim(nonzero[0], nonzero[-1])
+            nonzero_left = _bins[:-1][_h > 0]
+            nonzero_right = _bins[1:][_h > 0]
+            ax.set_xlim(nonzero_left[0], nonzero_right[-1])
+            rax.set_xlim(nonzero_left[0], nonzero_right[-1])
         else:  # Single bin
             ax.set_xlim(_bins[0], _bins[-1])
             rax.set_xlim(_bins[0], _bins[-1])
@@ -511,7 +512,10 @@ def plot(
 
     # Ratio
     limlo, limhi = rax.get_ylim()
-    rax.set_ylim(np.min([-2, limlo]), np.max([2, limhi * 1.8]))
+    if "rh" in locals():
+        rax.set_ylim(np.min([-2, np.nanmin(rh)*1.5 - 1]), np.max([2, 1 + np.nanmax(rh) * 1.5]))
+    else:
+        rax.set_ylim(np.min([-2, limlo]), np.max([2, limhi * 1.8]))
     rax.axhline(0, color="gray", ls="--")
     rax.set_ylabel(r"$\frac{Data-Bkg}{\sigma_{Data}}$", y=0.5)
 
@@ -590,11 +594,12 @@ def plot(
                 ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
     # Ratio legend
-    rax.legend(ncol=3) #dummy legend
+    ncol = 3 if not residuals else 1
+    rax.legend(ncol=ncol) #dummy legend
     handles, labels = ax.get_legend_handles_labels()
     rax.legend(
         loc="upper right",
-        ncol=3,
+        ncol=ncol,
         markerscale=0.8,
         fontsize="x-small" if len(labels) > 2 else _legend_fontsize,
         labelspacing=0.4,
@@ -604,7 +609,6 @@ def plot(
 
     logging.debug(f"  DEBUG: Cat info")
     if cat_info:
-        from matplotlib.offsetbox import AnchoredText
         if isinstance(cat_info, str):
             cats, cat_info = [cat_info], 1
             cat_text = f"{format_categories(cats, cat_info)}"
@@ -620,16 +624,25 @@ def plot(
         ax.add_artist(at)
         hep.plot.yscale_anchored_text(ax, soft_fail=True)
 
+    # Fit info
     if chi2:
-        chi2_raw = abs(data.values() - tot.values()) ** 2 / data.values()
-        chi2_val = np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0))
-        mean_chi2 = chi2_val / np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0) != 0)
+        _chi2_tot, _nbins = 0, 0 
+        for channel in channels:
+            data = getha("data", [channel], restoreNorm=restoreNorm)
+            tot = getha("total", [channel], restoreNorm=restoreNorm)
+            chi2_raw = abs(data.values() - tot.values()) ** 2 / data.variances()
+            chi2_val = np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0))
+            _chi2_tot += chi2_val
+            _nbins += len(data.values())
+        chi2_val = _chi2_tot
+        mean_chi2 = _chi2_tot / _nbins
         logging.debug(f"  Chi2 ({cats[0]}): {chi2_val:.2f}")
         logging.debug(f"  Mean Chi2 - chi2/nbins ({cats[0]}): {mean_chi2:.2f}")
 
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            r"$\overline{\chi^2_{no~corr}}$ = " + f"{mean_chi2:.2f}",
+            # r"$\chi^2_{no~corr}/Nbins$ = " + f"{chi2_val:.2f}/" + f"{_nbins:.2f}",
+            r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = " + f"{chi2_val:.2f}/" + f"{_nbins:.0f}",
             loc="upper left",  # pad=0.8,
             prop=dict(size="x-small", ha="center"),
             frameon=False,
@@ -638,6 +651,39 @@ def plot(
         hep.plot.yscale_anchored_text(rax, soft_fail=True)
 
     ax.set_ylim(0, ax.get_ylim()[-1] * 1.05)
+
+    if residuals and not blind:
+        resid_unc = np.zeros_like(data.values())
+        resid = data.values() - tot.values()
+        _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
+        resid_unc[resid < 0] = _hi[resid < 0]
+        resid_unc[resid > 0] = _lo[resid > 0]
+        resid /= resid_unc
+        logging.debug(f"  Residuals: {[f'{v:.2f}' for v in resid]}.")
+
+        resid_ax = hep.append_axes(rax, size="26%", extend=False, pad=0.05)
+        plt.subplots_adjust(wspace=0)
+        xrange = np.linspace(-5, 5, 11)
+        resid_ax.set_xlim(xrange[0], xrange[-1])
+        resid_ax.set_xticks([-2, 0, 2])
+        resid_ax.set_yticks([])
+        resid_hist = hist.new.Var(xrange).Int64().fill(resid)
+        resid_hist.plot(ax=resid_ax, yerr=False, density=False, flow='sum', lw=1.5, color='k')
+        hep.histplot(np.array([0.1, 2.1, 13.6, 34.1, 34.1, 13.6, 2.1, 0.1])*0.01*resid_hist.sum(), bins=np.linspace(-4, 4, 9), ax=resid_ax,
+                    histtype='fill', color='gray', alpha=0.4)
+        resid_ax.set_xlabel("Residuals", ha='right', x=1)
+        _stat, p_value = stats.shapiro(resid)
+        _stat, p_value_ks = stats.kstest(resid, 'norm', args=(0, 1))
+
+        anchored_text = AnchoredText(f'SW p-val = {p_value:.2f}\nKS p-val = {p_value_ks:.2f}', loc='upper left', frameon=False, prop=dict(size='xx-small'))  
+        resid_ax.add_artist(anchored_text)
+
+        resid_ax.set_ylim(resid_ax.get_ylim()[0]-((resid_ax.get_ylim()[1]-(resid_ax.get_ylim()[0]))/4), 
+                          resid_ax.get_ylim()[1]*1.5)
+        resid_ax.errorbar(resid, np.zeros_like(resid), yerr=0.01, fmt='|', markersize=4, c='k')
+        resid_ax.xaxis.minorticks_off()
+        resid_ax.tick_params(top = False) 
+        hep.plot.yscale_anchored_text(resid_ax, soft_fail=True)
 
     logging.debug(f"  DEBUG: Main plotting done")
     return fig, (ax, rax)

@@ -1,6 +1,6 @@
 env:
   DPI: 100
-  P: 0
+  P: 4
 name: CI
 
 on:

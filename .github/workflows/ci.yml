@@ -15,7 +15,7 @@ on:
 
 jobs:
   testA:
-    name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
+    name: "🐍 ${{ matrix.python-version }} • Test A • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
@@ -55,10 +55,10 @@ jobs:
       with:
         name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
         retention-days: 3
-        path: .tests
+        path: tests/outs
 
   testAbig:
-    name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
+    name: "🐍 ${{ matrix.python-version }} • Test A(big) • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
@@ -100,10 +100,10 @@ jobs:
       with:
         name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
         retention-days: 3
-        path: .tests
+        path: tests/outs
 
   testB:
-    name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
+    name: "🐍 ${{ matrix.python-version }} • Test B • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
@@ -145,10 +145,10 @@ jobs:
       with:
         name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
         retention-days: 3
-        path: .tests
+        path: tests/outs
 
   testC:
-    name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
+    name: "🐍 ${{ matrix.python-version }} • Test C • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
@@ -190,10 +190,10 @@ jobs:
       with:
         name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
         retention-days: 3
-        path: .tests
+        path: tests/outs
 
   testD:
-    name: "🐍 ${{ matrix.python-version }} • ${{ matrix.runs-on }}"
+    name: "🐍 ${{ matrix.python-version }} • Test D • ${{ matrix.runs-on }}"
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
@@ -235,4 +235,4 @@ jobs:
       with:
         name: results-${{ matrix.python-version }}-${{ matrix.runs-on }}
         retention-days: 3
-        path: .tests
+        path: tests/outs

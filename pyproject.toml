@@ -42,6 +42,7 @@ dependencies = [
   "typing_extensions",
   "typeguard",
   "rich",
+  "rich-argparse-plus",
   "numpy",
   "uproot",
   "mplhep>=0.3.45",

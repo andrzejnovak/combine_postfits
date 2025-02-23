@@ -13,7 +13,8 @@ import importlib.util
 matplotlib.use("Agg")
 import mplhep as hep
 import argparse
-
+from rich_argparse_plus import RichHelpFormatterPlus
+RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
 from combine_postfits import plot, utils
 
 import click
@@ -82,186 +83,38 @@ def get_digits(number):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=RichHelpFormatterPlus)
     parser.add_argument(
-        "-i", "--input", default="fitDiagnosticsTest.root", help="Input shapes file"
+        "--input", "-i",  default="fitDiagnosticsTest.root", help="Input combine fitDiagnostics file"
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="plots",
+        dest="output",
+        help="Output folder (will becreated if it doesn't exist).",
     )
     parser.add_argument(
         "--fit",
         default="all",
-        choices={"prefit", "fit_s", "fit_b",    "all"},
+        choices=["all", "prefit", "fit_s", "fit_b"],
         dest="fit",
-        help="Shapes to plot",
-    )
-    parser.add_argument(
-        "-o",
-        "--output-folder",
-        default="plots",
-        dest="output_folder",
-        help="Folder to store plots - will be created if it doesn't exist.",
+        help="Shape set to plot.",
     )
     parser.add_argument(
         "--cats",
         default=None,
         dest="cats",
-        help="Either a comma-separated list of categories to plot or a mapping of categories to plot together, e.g. `cat1,cat2` in the form of `mcat1:cat1,cat2;mcat2:cat3,cat4`",
+        help="Categories to plot. Either a comma-separated list of categories to plot (`cat1,cat2`) or a mapping of categories to plot and/or merge (`mcat1:cat1,cat2;mcat2:cat3,cat4`).",
     )
     parser.add_argument(
-        "--sigs",
-        default=None,
-        dest="sigs",
-        help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
-    )
-    parser.add_argument(
-        "--project-signals",
-        "--project_signals",
-        default=None,
-        dest="project_signals",
-        help="Comma-separated list of values of equal length with --sigs, e.g. `1,1`.",
-    )
-    parser.add_argument(
-        "--bkgs",
-        default=None,
-        dest="bkgs",
-        help="Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`",
-    )
-    parser.add_argument(
-        "--rmap",
-        default=None,
-        dest="rmap",
-        # type=json.loads,
-        help="A dict-like string e.g. `hbb:r_q,htt:r_t`",
-    )
-    parser.add_argument(
-        "--onto",
-        default=None,
-        dest="onto",
-        help="Bkg to plot other processes onto, e.g. `qcd`.",
-    )
-    parser.add_argument(
-        "-f",
         "--format",
+        "-f",
         type=str,
         default="png",
-        choices={"png", "pdf", "both"},
-        help="Plot format",
+        choices=["png", "pdf", "both"],
+        help="Plot output format",
     )
-    # Styling/Colors
-    parser.add_argument(
-        "-s",
-        "--style",
-        default=None,
-        dest="style",
-        help="Style file yaml e.g. `style.yml`",
-    )
-    parser.add_argument(
-        "--cmap",
-        type=str,
-        default=None,
-        help="Name of `cmap` to fill colors in `style.yml` from. Eg.: Tiepolo;Renoir;tab10",
-    )
-    parser.add_argument(
-        "--clipx",
-        type=str2bool,
-        default="True",
-        choices={True, False},
-        help="Clip x-axis to range of data",
-    )
-
-    # Labels
-    pseudo = parser.add_mutually_exclusive_group(required=True)
-    pseudo.add_argument("--data", action="store_false", dest="pseudo")
-    pseudo.add_argument("--MC", action="store_true", dest="pseudo")
-    pseudo.add_argument("--toys", action="store_true", dest="toys")
-    parser.add_argument(
-        "--blind",
-        type=str,
-        default=None,
-        help="Category to blind data (not plotted), e.g. `cat1`",
-    )
-    parser.add_argument("--unblind", action="store_true", dest="unblind")
-    parser.add_argument(
-        "--year",
-        default=None,
-        choices={"2016", "2017", "2018", ""},
-        type=str,
-        help="year label",
-    )
-    parser.add_argument(
-        "--lumi",
-        default=None,
-        type=float,
-        help="Luminosity for label",
-    )
-    parser.add_argument(
-        "--pub",
-        default=None,
-        type=str,
-        help="arxiv no",
-    )
-    parser.add_argument(
-        "--xlabel",
-        default=None,
-        type=str,
-        help="Plot x-label eg `$m_{\tau\bar{\tau}}^{reg}$`. If left `None` will read from combine. When using latex enclose string as 'str'.",
-    )
-    parser.add_argument(
-        "--ylabel",
-        default=None,
-        type=str,
-        help="Plot y-label. If left `None` will read from combine. When using latex enclose string as 'str'.",
-    )
-    parser.add_argument(
-        "--no_zero",
-        type=str2bool,
-        default="False",
-        choices={True, False},
-        help="Hide zeroth tick on the y-axis.",
-    )
-    parser.add_argument(
-        "--chi2",
-        dest="chi2",
-        type=str2bool,
-        nargs="?",
-        const="True",
-        default="False",
-        choices={True, False},
-        help="DEBUG - Show chi2",
-    )
-    # pseudo.add_argument("--residuals", action="store_true", dest="residuals", default=False)
-    parser.add_argument(
-        "--residuals",
-        dest="residuals",
-        type=str2bool,
-        nargs="?",
-        const="True",
-        default="False",
-        choices={True, False},
-        help="DEBUG - Show residuals",
-    )
-    parser.add_argument(
-        "--cmslabel",
-        default="Private Work",
-        type=str,
-        help="CMS Label",
-    )
-    parser.add_argument(
-        "--catlabels",
-        default=None,
-        type=str,
-        help="Category label to replace automated labelling. To pass per-category label, use `;` separator.",
-    )
-    parser.add_argument(
-        "--dpi",
-        default=300,
-        type=int,
-        help="dpi for png format",
-    )
-    parser.add_argument("--noroot", action="store_true", help="Skip ROOT dependency")
-
-    # Debug
-    parser.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
-    parser.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
     parser.add_argument(
         "-p",
         nargs='?', 
@@ -269,11 +122,193 @@ def main():
         const=10,
         type=int,
         dest="multiprocessing",
-        help="Use multiprocessing to make plots. May fail due to parallel reads from fitDiag. `-p` defaults to 10 processes.",
+        help="Use multiprocessing. May fail due to parallel reads from fitDiag. `-p` defaults to 10 processes.",
     )
+    parser_data = parser.add_argument_group('Data', description="What type of data is stored in 'data_obs' in the input file.")
+    pseudo = parser_data.add_mutually_exclusive_group(required=True)
+    pseudo.add_argument("--data", action="store_false", dest="pseudo")
+    pseudo.add_argument("--MC", action="store_true", dest="pseudo")
+    pseudo.add_argument("--toys", action="store_true", dest="toys")
+    parser_data.add_argument("--unblind", action="store_true", dest="unblind", help="Confirm wanting to plot real data")
+    parser_data.add_argument(
+        "--blind",
+        type=str,
+        default=None,
+        help="Category to blind data (not plotted), e.g. `cat1`",
+    )
+    parser_plot = parser.add_argument_group('Stacking options')
+    parser_plot.add_argument(
+        "--sigs",
+        default=None,
+        dest="sigs",
+        help="Signals. Comma-separated list of keys available in provided --style sty.yml file, e.g. `ggH,VBF`",
+    )
+    parser_plot.add_argument(
+        "--project-signals",
+        "--project_signals",
+        default=None,
+        dest="project_signals",
+        help="Project signals onto the x-axis at scale. Comma-separated list of values of equal length with --sigs, e.g. `1,1`.",
+    )
+    parser_plot.add_argument(
+        "--bkgs",
+        default=None,
+        dest="bkgs",
+        help="Backgrounds. Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `qcd,ttbar`",
+    )
+    parser_plot.add_argument(
+        "--onto",
+        default=None,
+        dest="onto",
+        help="Background to plot unfilled and stack other processes onto, e.g. `qcd`. Useful when one background is dominant.",
+    )
+    parser_plot.add_argument(
+        "--rmap",
+        default=None,
+        dest="rmap",
+        # type=json.loads,
+        help="A dict-like string (`hbb:r_q,htt:r_t`) mapping signal keys in --sigs to POIs in --input fitDiagnostics file (requires ROOT).",
+    )
+    parser_styling = parser.add_argument_group('Styling')
+    parser_styling.add_argument(
+        "--style",
+        "-s",
+        default=None,
+        dest="style",
+        help="Style yaml file e.g. `style.yml`. Automatically created as `sty.yml` if not provided.",
+    )
+    parser_styling.add_argument(
+        "--cmap",
+        type=str,
+        default=None,
+        help="Name of `cmap` to fill colors in `sty.yml` from. Eg.: Tiepolo;Renoir;tab10. Only used if `sty.yml` is not provided.",
+    )
+    parser_styling.add_argument(
+        "--cmslabel",
+        default="Private Work",
+        type=str,
+        help="CMS Label.",
+    )
+    parser_styling.add_argument(
+        "--year",
+        default=None,
+        choices=["2016", "2017", "2018", '""'],
+        type=str,
+        help="Year label.",
+    )
+    parser_styling.add_argument(
+        "--pub",
+        default=None,
+        type=str,
+        help="Supplementary label - arxiv no.",
+    )
+    parser_styling.add_argument(
+        "--lumi",
+        default=None,
+        type=float,
+        help="Luminosity for label.",
+    )
+    parser_styling.add_argument(
+        "--xlabel",
+        default=None,
+        type=str,
+        help="Plot x-label eg `$m_{\\tau\\bar{\\tau}}^{reg}$`. " 
+             "If left `None` will read from combine. When using latex enclose string as 'str'.",
+             #  If copying the above sequence from code use `$m_{\tau\bar{\tau}}^{reg}$`
+    )
+    parser_styling.add_argument(
+        "--ylabel",
+        default=None,
+        type=str,
+        help="Plot y-label. If left `None` will read from combine. When using latex enclose string as 'str'.",
+    )
+    parser_styling.add_argument(
+        "--catlabels",
+        default=None,
+        type=str,
+        help="Category label to replace automated labelling. To pass per-category label, use `;` separator.",
+    )
+    parser_styling.add_argument(
+        "--clipx",
+        type=str2bool,
+        const="True",
+        nargs="?",
+        default="True",
+        choices=[True, False],
+        help="Clip x-axis to range of data.",
+    )
+    parser_styling.add_argument(
+        "--no_zero",
+        type=str2bool,
+        const="True",
+        nargs="?",
+        default="False",
+        choices=[True, False],
+        help="Hide zeroth tick on the y-axis.",
+    )
+    parser_styling.add_argument(
+        "--dpi",
+        default=300,
+        type=int,
+        help="DPI for png format.",
+    )
+    parser_debug = parser.add_argument_group('DEBUG Options')
+    parser_debug.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
+    parser_debug.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
+    parser_debug.add_argument(
+        "--chi2",
+        dest="chi2",
+        type=str2bool,
+        nargs="?",
+        const="True",
+        default="False",
+        choices=[True, False],
+        help="Display chi2 (when plotting multiple categories a per-category sum is displayed).",
+    )
+    parser_debug.add_argument(
+        "--residuals",
+        dest="residuals",
+        type=str2bool,
+        nargs="?",
+        const="True",
+        default="False",
+        choices=["True", "False"],
+        help="Display data/MC residuals.",
+    )
+    parser_debug.add_argument("--noroot", action="store_true", help="Skip ROOT dependency")
+
+    import textwrap
+    epilog= textwrap.dedent("""
+    Minimal example:
+    ```
+    combine_postfits -i fitDiagnosticsTest.root --toys
+    ```
+
+    Basic usage (modify generated `sty.yml` file) with debug options on:
+    ```
+    combine_postfits -i fitDiagnosticsTest.root --sigs hbb --bkgs qcd,wjets,zjets,ttbar --rmap 'hbb:r' --onto qcd --style sty.yml
+    --data --unblind
+    --cmslabel 'Private Work' --year 2016 --lumi 35.9 --xlabel '$m_{b\\bar{b}}^{reg}$'
+    --chi2 True --residuals True -p
+    ```
+
+    Extended example with category merging and signal mapping
+    ```
+    combine_postfits -i fitDiagnosticsTest.root -o final_plots --style sty.yml 
+    --data --unblind --sigs hbb,zbb --bkgs top,ttbat,wjets,wcq,zjets_other --onto qcd 
+    --rmap zbb:r_z,hbb:r  --project-signal 50,0
+    --cats 'pass16:ptbin*pass2016;pass:ptbin*pass*;fail:ptbin*fail*;muCRpass16:muonCRpass2016' 
+    -p 20
+    ```
+
+    For more examples see https://github.com/andrzejnovak/combine_postfits/blob/master/tests/test.sh 
+    """
+    )
+    parser_epi = parser.add_argument_group('Examples:', description=epilog)
+
     args = parser.parse_args()
 
-    os.makedirs(args.output_folder, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
 
     # Arg processing
     log_level = logging.WARNING
@@ -300,7 +335,7 @@ def main():
     else:
         fit_types = [args.fit]
     for fit in fit_types:
-        os.makedirs(f"{args.output_folder}/{fit}", exist_ok=True)
+        os.makedirs(f"{args.output}/{fit}", exist_ok=True)
     if args.format == "both":
         format = ["png", "pdf"]
     else:
@@ -488,9 +523,9 @@ def main():
 
                 # Save
                 for fmt in format:
-                    logging.debug(f"Saving: '{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}'")
+                    logging.debug(f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'")
                     fig.savefig(
-                        f"{args.output_folder}/{fittype}/{sname}_{fittype}.{fmt}",
+                        f"{args.output}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,
                         dpi=args.dpi,
                         bbox_inches="tight",

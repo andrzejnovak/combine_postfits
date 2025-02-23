@@ -21,9 +21,11 @@ cmap10 = [
     "#92dadd",
 ]
 
+
 def adjust_lightness(color, amount=0.5):
     import matplotlib.colors as mc
     import colorsys
+
     try:
         c = mc.cnames[color]
     except:
@@ -32,6 +34,7 @@ def adjust_lightness(color, amount=0.5):
     rgb = colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
     scaled_rgb = tuple([int(x * 255) for x in rgb])
     return "#{0:02x}{1:02x}{2:02x}".format(*scaled_rgb)
+
 
 def module_exists(module_name):
     return module_name in (name for loader, name, ispkg in iter_modules())
@@ -103,7 +106,11 @@ def fill_colors(style, cmap=None, no_duplicates=True):
             logging.info(
                 f'Key "color" not found for sample "{key}". Setting to: {pop_col}',
             )
-            style[key]["color"] = pop_col["color"] if pop_col["color"] not in taken else adjust_lightness(pop_col["color"], 1.4)
+            style[key]["color"] = (
+                pop_col["color"]
+                if pop_col["color"] not in taken
+                else adjust_lightness(pop_col["color"], 1.4)
+            )
             taken.append(pop_col["color"])
     if counter > len(cmap):
         logging.warning(
@@ -123,7 +130,12 @@ def fill_colors(style, cmap=None, no_duplicates=True):
 def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     style_base = {
         "data": {"label": "Data", "color": "black", "hatch": None, "yield": 0},
-        "total_signal": {"label": "Total Signal", "color": "red", "hatch": None, "yield": 0},
+        "total_signal": {
+            "label": "Total Signal",
+            "color": "red",
+            "hatch": None,
+            "yield": 0,
+        },
     }
 
     fit_types = ["prefit", "fit_s", "fit_b"]
@@ -145,39 +157,41 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         return sorted([k for k in list(set(snames)) if "covar" not in k])
 
     sample_keys = get_samples_fitDiag(fitDiag)
-    
+
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
         x = np.arange(len(_h))
         try:
-            coef = np.polyfit(x, _h ,1)
+            coef = np.polyfit(x, _h, 1)
         except:  # noqa
             return 0
-        poly1d_fn = np.poly1d(coef) 
+        poly1d_fn = np.poly1d(coef)
         fy = poly1d_fn(x)
-        residuals = abs(fy-_h)/np.sqrt(_h)
+        residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
     yield_dict = {
-            k: sum(
-                [
-                    sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                    for fit in avail_fit_types
-                    for ch in avail_channels
-                    if f"shapes_{fit}/{ch}/{k}" in fitDiag and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                    and "total" not in k  # Sum only TH1s, data is black anyway
-                ]
-            )
-            for k in sample_keys
-        }
+        k: sum(
+            [
+                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
+                for fit in avail_fit_types
+                for ch in avail_channels
+                if f"shapes_{fit}/{ch}/{k}" in fitDiag
+                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
+                and "total" not in k  # Sum only TH1s, data is black anyway
+            ]
+        )
+        for k in sample_keys
+    }
     linearity_dict = {
         k: np.mean(
             [
                 linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
                 for fit in avail_fit_types
                 for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
+                if f"shapes_{fit}/{ch}/{k}" in fitDiag
+                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
                 and "total" not in k  # Sum only TH1s, data is black anyway
             ]
         )
@@ -193,7 +207,9 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         if not sort_peaky:
             logging.info(f"Sorting samples by yield")
         else:
-            logging.info(f"EXPERIMENTAL: Sorting samples by a hybrid score: log(yield) * peakiness")
+            logging.info(
+                f"EXPERIMENTAL: Sorting samples by a hybrid score: log(yield) * peakiness"
+            )
         keys_sorted = [
             k
             for k, v in sorted(
@@ -396,11 +412,17 @@ def geth(name, shapes_dir, restoreNorm=True):
 def getha(name, channels, restoreNorm=True):
     for shapes_dir in channels:
         if name not in shapes_dir:
-            logging.debug(f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped.")
+            logging.debug(
+                f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped."
+            )
     return sum(
-        [geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir]
+        [
+            geth(name, shapes_dir, restoreNorm=restoreNorm)
+            for shapes_dir in channels
+            if name in shapes_dir
+        ]
     )
-    
+
 
 def geths(names, channels, restoreNorm=True, style_dict=None):
     if style_dict is not None:

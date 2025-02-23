@@ -30,36 +30,42 @@ def log_pretty(obj):
 
     return f"{pretty_out}\n"
 
+
 @typechecked
 def plot(
     fitDiag_uproot,
     fit_type: str = "prefit",  # 'prefit' | 'fit_s' | 'fit_b'
     cats: str | list[str] | None = None,
     # Sample plotting opts
-    sigs: list[str]
-    | None = None,  # List of samples considered signals, by default matches to `total_signal`
-    bkgs: list[str]
-    | None = None,  # List of samples considered backaground - exclude QCD
+    sigs: (
+        list[str] | None
+    ) = None,  # List of samples considered signals, by default matches to `total_signal`
+    bkgs: (
+        list[str] | None
+    ) = None,  # List of samples considered backaground - exclude QCD
     onto: str | None = None,  # large background to plot others onto typically QCD
-    project: list[str]
-    | None = None,  # Project (duplicate) some samples onto the x-axis for readability
-    project_signal: list[float | int]
-    | None = None,  # Plot projected total signal on x-axis, scale by `project_signal`
+    project: (
+        list[str] | None
+    ) = None,  # Project (duplicate) some samples onto the x-axis for readability
+    project_signal: (
+        list[float | int] | None
+    ) = None,  # Plot projected total signal on x-axis, scale by `project_signal`
     blind: bool = False,  # Blind data
-    remove_tiny: bool
-    | float
-    | int
-    | str = False,  # Remove enteries with total yield below treshold eg. {False | 10 | '5%'}
+    remove_tiny: (
+        bool | float | int | str
+    ) = False,  # Remove enteries with total yield below treshold eg. {False | 10 | '5%'}
     # Style opts
     restoreNorm=True,  # Combine outputs binwnormed results - restores to nominal
     fitDiag_root=None,  # ROOT fitDiagnostics file to read fit results and display signal strength
     rmap: dict | None = None,
     style: dict | None = None,  # Style YAML
-    merge: dict[str, list]
-    | None = None,  # {new_key: [old_key1, old_key2]} overwrites settings in style yaml
+    merge: (
+        dict[str, list] | None
+    ) = None,  # {new_key: [old_key1, old_key2]} overwrites settings in style yaml
     clipx: bool = False,  # Clip edge bins when empty
-    cat_info: bool
-    | int | str = 2,  # Number of category names to display per line. Set ``False`` to disable cat info. Set to str to display custom text.
+    cat_info: (
+        bool | int | str
+    ) = 2,  # Number of category names to display per line. Set ``False`` to disable cat info. Set to str to display custom text.
     chi2: bool = False,  # Calculate and display chi2 of data to total shapes
     residuals: bool = False,  # Calculated and display chi2 of data to total shapes
 ) -> tuple:
@@ -117,12 +123,12 @@ def plot(
 
     # Soft-fail on missing hist
     def hist_dict_fcn(name, raw=False, global_scale=True, th=0.003):
-        '''
+        """
         raw: return raw hist without any modifications
         global_scale: when true will clip small values based on global max, else based on hist max
-                set to False when plotting eg. signal in ratio 
-        '''
-        _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()]) 
+                set to False when plotting eg. signal in ratio
+        """
+        _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()])
         if name not in hist_dict:
             logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
             _hobj = deepcopy(hist_dict[list(hist_dict.keys())[0]])
@@ -133,21 +139,21 @@ def plot(
         if raw:
             return _hobj
         # Convert zeros to nans for plotting (lw>0)
-        if np.any(
-            _hobj.values() < 0
-        ):  # negative hists
+        if np.any(_hobj.values() < 0):  # negative hists
             _th = th * np.min(_hobj.values())
             non_zero_indices = np.where(_hobj.values() < _th)[0]
         else:  # positive hists
-            _th = th * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
+            _th = th * (
+                np.max(_max_value_global) if global_scale else np.max(_hobj.values())
+            )
             non_zero_indices = np.where(_hobj.values() > _th)[0]
         if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
             logging.debug(
                 f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
             )
-            _hobj.view().value[:non_zero_indices[0]] = np.nan
+            _hobj.view().value[: non_zero_indices[0]] = np.nan
             _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
-        # if len(non_zero_indices) != len(_hobj.values()):
+            # if len(non_zero_indices) != len(_hobj.values()):
             logging.debug(
                 f"  Hist '{name}' had values < '{_th:.3f}'. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
             )
@@ -173,18 +179,25 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    if "total_signal" not in list(
+        set(sum([c.keys() for c in channels], []))
+    ):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [
             k
             for k in orig_hist_keys
-            if k in channels[0] and channels[0][k] == channels[0]["total_signal"] and "total" not in k
+            if k in channels[0]
+            and channels[0][k] == channels[0]["total_signal"]
+            and "total" not in k
         ]
     default_bkgs = [
         k
         for k in hist_keys
-        if k not in default_signal and k != onto and "total" not in k and k not in _merged_away
+        if k not in default_signal
+        and k != onto
+        and "total" not in k
+        and k not in _merged_away
     ]
     _sortable, _extra = (
         [k for k in default_bkgs if k in style.keys()],
@@ -296,7 +309,10 @@ def plot(
             0 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])
         ]
         hep.histplot(
-            [hist_dict_fcn(onto), *[hist_dict_fcn(k, global_scale=False, th=0.02) for k in bkgs + sigs]],
+            [
+                hist_dict_fcn(onto),
+                *[hist_dict_fcn(k, global_scale=False, th=0.02) for k in bkgs + sigs],
+            ],
             ax=ax,
             label=["_", *(bkgs + sigs)],
             stack=True,
@@ -334,7 +350,9 @@ def plot(
         if len(sigs) == 1:
             rmap = {sigs_original[0]: "r"}
         else:
-            logging.warning(f"  No `--rmap` passed. Automatic inference wasn't possible. Signal strengths won't be shown.")
+            logging.warning(
+                f"  No `--rmap` passed. Automatic inference wasn't possible. Signal strengths won't be shown."
+            )
     if project_signal is not None:
         _rs = dict(zip(sigs_original, [1] * len(sigs_original)))
         if fit_type == "prefit":
@@ -367,7 +385,11 @@ def plot(
         for j, sig in enumerate(sigs_original):
             if sig_dicts[sig] == 0 or sig not in hist_keys:
                 continue
-            _scaled_sig = hist_dict_fcn(sig, global_scale=False, th=0.05) * sig_dicts[sig] / _rs[sig]
+            _scaled_sig = (
+                hist_dict_fcn(sig, global_scale=False, th=0.05)
+                * sig_dicts[sig]
+                / _rs[sig]
+            )
             _p_label = (
                 style[sig]["label"]
                 if sig_dicts[sig] == 1
@@ -381,7 +403,7 @@ def plot(
                 histtype="step",
                 label=_p_label,
                 yerr=False,
-                ls='dashed',
+                ls="dashed",
                 lw=2,
             )
 
@@ -392,7 +414,10 @@ def plot(
     if not blind:
         # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
         rh = data.values() - tot_bkg.values()
-        _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
+        _lo, _hi = np.abs(
+            hep.error_estimation.poisson_interval(data.values(), data.variances())
+            - data.values()
+        )
         rh_unc[rh < 0] = _hi[rh < 0]
         rh_unc[rh > 0] = _lo[rh > 0]
         rh /= rh_unc
@@ -407,14 +432,18 @@ def plot(
             xerr=True,
             zorder=4,
         )
-    # Signal plotting 
+    # Signal plotting
     # Plot total signal if sum of matched signals doesn't match total, emit warning
-    if not np.round(np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original])) == np.round(np.sum(hist_dict_fcn("total_signal", raw=True).values())):
-            logging.warning(
-                f"  Sum of specified signals: {sigs_original} does not match 'total_signal'. Will plot 'total_signal' in the ratio instead."
-            )
-            sigs_original = ["total_signal"]
-    if len(sigs_original) > 0 and np.any([sig in hist_keys for sig in sigs_original]):  # No signals in CRs
+    if not np.round(
+        np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original])
+    ) == np.round(np.sum(hist_dict_fcn("total_signal", raw=True).values())):
+        logging.warning(
+            f"  Sum of specified signals: {sigs_original} does not match 'total_signal'. Will plot 'total_signal' in the ratio instead."
+        )
+        sigs_original = ["total_signal"]
+    if len(sigs_original) > 0 and np.any(
+        [sig in hist_keys for sig in sigs_original]
+    ):  # No signals in CRs
         # Plotted signals should match total_signal, replace if not
         _hatch = [style[sig]["hatch"] for sig in sigs_original]
         _edgecolor = [
@@ -427,7 +456,10 @@ def plot(
         ]
         _lw = [0 if h not in ["none", None] else 0 for h in _hatch]
         hep.histplot(
-            [hist_dict_fcn(sig, global_scale=False, th=0.05) / rh_unc for sig in sigs_original],
+            [
+                hist_dict_fcn(sig, global_scale=False, th=0.05) / rh_unc
+                for sig in sigs_original
+            ],
             ax=rax,
             facecolor=_facecolor,
             edgecolor=_edgecolor,
@@ -444,15 +476,13 @@ def plot(
             "Fit may not have converged correctly."
         )
     logging.debug(
-                f"  yerr - bkg variances (raw): {np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) }."
-            )
+        f"  yerr - bkg variances (raw): {np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) }."
+    )
     yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(
         data.variances() * tot_bkg.axes[0].widths
     )
     yerr = yerr_nom.copy()
-    logging.debug(
-                f"  yerr (raw): {yerr}."
-            )
+    logging.debug(f"  yerr (raw): {yerr}.")
     yerr[~np.isfinite(yerr_nom)] = 0
     if "rh" in locals():
         err_th = np.max([7, 1.5 * np.max(abs(np.r_[0.01, rh[np.isfinite(rh)]]))])
@@ -513,7 +543,9 @@ def plot(
     # Ratio
     limlo, limhi = rax.get_ylim()
     if "rh" in locals():
-        rax.set_ylim(np.min([-2, np.nanmin(rh)*1.5 - 1]), np.max([2, 1 + np.nanmax(rh) * 1.5]))
+        rax.set_ylim(
+            np.min([-2, np.nanmin(rh) * 1.5 - 1]), np.max([2, 1 + np.nanmax(rh) * 1.5])
+        )
     else:
         rax.set_ylim(np.min([-2, limlo]), np.max([2, limhi * 1.8]))
     rax.axhline(0, color="gray", ls="--")
@@ -555,7 +587,9 @@ def plot(
             for sig in sigs_original:
                 if rmap is None or sig not in rmap or sig not in hist_keys:
                     continue
-                logging.debug(f"  Reading signal strength for '{sig}' from parameter '{rmap[sig]}'.")
+                logging.debug(
+                    f"  Reading signal strength for '{sig}' from parameter '{rmap[sig]}'."
+                )
                 _r = get_fit_val(
                     fitDiag_root,
                     rmap[sig],
@@ -595,7 +629,7 @@ def plot(
 
     # Ratio legend
     ncol = 3 if not residuals else 1
-    rax.legend(ncol=ncol) #dummy legend
+    rax.legend(ncol=ncol)  # dummy legend
     handles, labels = ax.get_legend_handles_labels()
     rax.legend(
         loc="upper right",
@@ -626,7 +660,7 @@ def plot(
 
     # Fit info
     if chi2:
-        _chi2_tot, _nbins = 0, 0 
+        _chi2_tot, _nbins = 0, 0
         for channel in channels:
             data = getha("data", [channel], restoreNorm=restoreNorm)
             tot = getha("total", [channel], restoreNorm=restoreNorm)
@@ -642,7 +676,9 @@ def plot(
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
             # r"$\chi^2_{no~corr}/Nbins$ = " + f"{chi2_val:.2f}/" + f"{_nbins:.2f}",
-            r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = " + f"{chi2_val:.2f}/" + f"{_nbins:.0f}",
+            r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = "
+            + f"{chi2_val:.2f}/"
+            + f"{_nbins:.0f}",
             loc="upper left",  # pad=0.8,
             prop=dict(size="x-small", ha="center"),
             frameon=False,
@@ -655,7 +691,10 @@ def plot(
     if residuals and not blind:
         resid_unc = np.zeros_like(data.values())
         resid = data.values() - tot.values()
-        _lo, _hi = np.abs(hep.error_estimation.poisson_interval(data.values(), data.variances()) - data.values())
+        _lo, _hi = np.abs(
+            hep.error_estimation.poisson_interval(data.values(), data.variances())
+            - data.values()
+        )
         resid_unc[resid < 0] = _hi[resid < 0]
         resid_unc[resid > 0] = _lo[resid > 0]
         resid /= resid_unc
@@ -668,21 +707,41 @@ def plot(
         resid_ax.set_xticks([-2, 0, 2])
         resid_ax.set_yticks([])
         resid_hist = hist.new.Var(xrange).Int64().fill(resid)
-        resid_hist.plot(ax=resid_ax, yerr=False, density=False, flow='sum', lw=1.5, color='k')
-        hep.histplot(np.array([0.1, 2.1, 13.6, 34.1, 34.1, 13.6, 2.1, 0.1])*0.01*resid_hist.sum(), bins=np.linspace(-4, 4, 9), ax=resid_ax,
-                    histtype='fill', color='gray', alpha=0.4)
-        resid_ax.set_xlabel("Residuals", ha='right', x=1)
+        resid_hist.plot(
+            ax=resid_ax, yerr=False, density=False, flow="sum", lw=1.5, color="k"
+        )
+        hep.histplot(
+            np.array([0.1, 2.1, 13.6, 34.1, 34.1, 13.6, 2.1, 0.1])
+            * 0.01
+            * resid_hist.sum(),
+            bins=np.linspace(-4, 4, 9),
+            ax=resid_ax,
+            histtype="fill",
+            color="gray",
+            alpha=0.4,
+        )
+        resid_ax.set_xlabel("Residuals", ha="right", x=1)
         _stat, p_value = stats.shapiro(resid)
-        _stat, p_value_ks = stats.kstest(resid, 'norm', args=(0, 1))
+        _stat, p_value_ks = stats.kstest(resid, "norm", args=(0, 1))
 
-        anchored_text = AnchoredText(f'SW p-val = {p_value:.2f}\nKS p-val = {p_value_ks:.2f}', loc='upper left', frameon=False, prop=dict(size='xx-small'))  
+        anchored_text = AnchoredText(
+            f"SW p-val = {p_value:.2f}\nKS p-val = {p_value_ks:.2f}",
+            loc="upper left",
+            frameon=False,
+            prop=dict(size="xx-small"),
+        )
         resid_ax.add_artist(anchored_text)
 
-        resid_ax.set_ylim(resid_ax.get_ylim()[0]-((resid_ax.get_ylim()[1]-(resid_ax.get_ylim()[0]))/4), 
-                          resid_ax.get_ylim()[1]*1.5)
-        resid_ax.errorbar(resid, np.zeros_like(resid), yerr=0.01, fmt='|', markersize=4, c='k')
+        resid_ax.set_ylim(
+            resid_ax.get_ylim()[0]
+            - ((resid_ax.get_ylim()[1] - (resid_ax.get_ylim()[0])) / 4),
+            resid_ax.get_ylim()[1] * 1.5,
+        )
+        resid_ax.errorbar(
+            resid, np.zeros_like(resid), yerr=0.01, fmt="|", markersize=4, c="k"
+        )
         resid_ax.xaxis.minorticks_off()
-        resid_ax.tick_params(top = False) 
+        resid_ax.tick_params(top=False)
         hep.plot.yscale_anchored_text(resid_ax, soft_fail=True)
 
     logging.debug(f"  DEBUG: Main plotting done")

@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 import mplhep as hep
 import argparse
 from rich_argparse_plus import RichHelpFormatterPlus
+
 RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
 from combine_postfits import plot, utils
 
@@ -26,10 +27,11 @@ from rich.progress import (
     MofNCompleteColumn,
     TimeRemainingColumn,
     TimeElapsedColumn,
-    SpinnerColumn
+    SpinnerColumn,
 )
 from rich.prompt import Confirm
 from rich.traceback import install
+
 install(show_locals=False)
 
 ROOT_spec = importlib.util.find_spec("ROOT")
@@ -41,13 +43,18 @@ hep.style.use("CMS")
 
 
 def time_check(progress, procs, limit=5):
-    if progress.tasks[0].elapsed//60 >= limit:
-        logging.error(f"Plotting taking longer than {limit} minutes. Likely and issue with file opening or too many figures. Try rerunning or running with `--p 0`.")
+    if progress.tasks[0].elapsed // 60 >= limit:
+        logging.error(
+            f"Plotting taking longer than {limit} minutes. Likely and issue with file opening or too many figures. Try rerunning or running with `--p 0`."
+        )
         remaining_procs = [p for p in procs if p.is_alive()]
-        logging.error(f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}")
+        logging.error(
+            f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}"
+        )
         for p in remaining_procs:
             p.terminate()
         import sys
+
         sys.exit()
 
 
@@ -85,7 +92,10 @@ def get_digits(number):
 def main():
     parser = argparse.ArgumentParser(formatter_class=RichHelpFormatterPlus)
     parser.add_argument(
-        "--input", "-i",  default="fitDiagnosticsTest.root", help="Input combine fitDiagnostics file"
+        "--input",
+        "-i",
+        default="fitDiagnosticsTest.root",
+        help="Input combine fitDiagnostics file",
     )
     parser.add_argument(
         "--output",
@@ -117,26 +127,34 @@ def main():
     )
     parser.add_argument(
         "-p",
-        nargs='?', 
-        default=0, 
+        nargs="?",
+        default=0,
         const=10,
         type=int,
         dest="multiprocessing",
         help="Use multiprocessing. May fail due to parallel reads from fitDiag. `-p` defaults to 10 processes.",
     )
-    parser_data = parser.add_argument_group('Data', description="What type of data is stored in 'data_obs' in the input file.")
+    parser_data = parser.add_argument_group(
+        "Data",
+        description="What type of data is stored in 'data_obs' in the input file.",
+    )
     pseudo = parser_data.add_mutually_exclusive_group(required=True)
     pseudo.add_argument("--data", action="store_false", dest="pseudo")
     pseudo.add_argument("--MC", action="store_true", dest="pseudo")
     pseudo.add_argument("--toys", action="store_true", dest="toys")
-    parser_data.add_argument("--unblind", action="store_true", dest="unblind", help="Confirm wanting to plot real data")
+    parser_data.add_argument(
+        "--unblind",
+        action="store_true",
+        dest="unblind",
+        help="Confirm wanting to plot real data",
+    )
     parser_data.add_argument(
         "--blind",
         type=str,
         default=None,
         help="Category to blind data (not plotted), e.g. `cat1`",
     )
-    parser_plot = parser.add_argument_group('Stacking options')
+    parser_plot = parser.add_argument_group("Stacking options")
     parser_plot.add_argument(
         "--sigs",
         default=None,
@@ -169,7 +187,7 @@ def main():
         # type=json.loads,
         help="A dict-like string (`hbb:r_q,htt:r_t`) mapping signal keys in --sigs to POIs in --input fitDiagnostics file (requires ROOT).",
     )
-    parser_styling = parser.add_argument_group('Styling')
+    parser_styling = parser.add_argument_group("Styling")
     parser_styling.add_argument(
         "--style",
         "-s",
@@ -212,9 +230,9 @@ def main():
         "--xlabel",
         default=None,
         type=str,
-        help="Plot x-label eg `$m_{\\tau\\bar{\\tau}}^{reg}$`. " 
-             "If left `None` will read from combine. When using latex enclose string as 'str'.",
-             #  If copying the above sequence from code use `$m_{\tau\bar{\tau}}^{reg}$`
+        help="Plot x-label eg `$m_{\\tau\\bar{\\tau}}^{reg}$`. "
+        "If left `None` will read from combine. When using latex enclose string as 'str'.",
+        #  If copying the above sequence from code use `$m_{\tau\bar{\tau}}^{reg}$`
     )
     parser_styling.add_argument(
         "--ylabel",
@@ -252,9 +270,13 @@ def main():
         type=int,
         help="DPI for png format.",
     )
-    parser_debug = parser.add_argument_group('DEBUG Options')
-    parser_debug.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
-    parser_debug.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
+    parser_debug = parser.add_argument_group("DEBUG Options")
+    parser_debug.add_argument(
+        "--verbose", "-v", "-_v", action="store_true", help="Verbose logging"
+    )
+    parser_debug.add_argument(
+        "--debug", "-vv", "--vv", action="store_true", help="Debug logging"
+    )
     parser_debug.add_argument(
         "--chi2",
         dest="chi2",
@@ -275,10 +297,14 @@ def main():
         choices=["True", "False"],
         help="Display data/MC residuals.",
     )
-    parser_debug.add_argument("--noroot", action="store_true", help="Skip ROOT dependency")
+    parser_debug.add_argument(
+        "--noroot", action="store_true", help="Skip ROOT dependency"
+    )
 
     import textwrap
-    epilog= textwrap.dedent("""
+
+    epilog = textwrap.dedent(
+        """
     Minimal example:
     ```
     combine_postfits -i fitDiagnosticsTest.root --toys
@@ -304,7 +330,7 @@ def main():
     For more examples see https://github.com/andrzejnovak/combine_postfits/blob/master/tests/test.sh 
     """
     )
-    parser_epi = parser.add_argument_group('Examples:', description=epilog)
+    parser_epi = parser.add_argument_group("Examples:", description=epilog)
 
     args = parser.parse_args()
 
@@ -351,7 +377,9 @@ def main():
         with open(args.style, "r") as stream:
             style = yaml.safe_load(stream)
     else:
-        style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
+        style = utils.make_style_dict_yaml(
+            fd, cmap=args.cmap, sort=True, sort_peaky=True
+        )
         logging.warning(
             "No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
             "The `plot` function will respect the order of samples in the style yaml unless overwritten. "
@@ -380,9 +408,13 @@ def main():
     else:
         rmap = None
     if args.sigs is not None:
-        _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
+        _unset_sigs = [
+            sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap
+        ]
         if len(_unset_sigs) > 0:
-            logging.warning(f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`.")
+            logging.warning(
+                f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
+            )
 
     # Get types/cats/blinds unwrapped
     all_channels = []
@@ -393,7 +425,7 @@ def main():
     for fit_type in fit_types:
         # all channels
         available_channels = [
-                c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
+            c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
         ]
         logging.debug(f"Available '{fit_type}' channels: {available_channels}")
         # Take all unless blinded
@@ -412,7 +444,13 @@ def main():
                 savenames = []
                 for cat in args.cats.split(";"):
                     mcat, cats = cat.split(":")
-                    cats = sum([fnmatch.filter(available_channels, _cat) for _cat in cats.split(",")], [])
+                    cats = sum(
+                        [
+                            fnmatch.filter(available_channels, _cat)
+                            for _cat in cats.split(",")
+                        ],
+                        [],
+                    )
                     # channels.append(cats.split(","))
                     channels.append(cats)
                     blinds.append(True if mcat in blind_cats else False)
@@ -420,10 +458,14 @@ def main():
                     logging.debug(f"Plotting merged channels '{mcat}': {cats}")
             # list
             else:
-                channels = sum([fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")], [])
-                blinds = [
-                    True if c in blind_cats else False for c in channels
-                ]
+                channels = sum(
+                    [
+                        fnmatch.filter(available_channels, _cat)
+                        for _cat in args.cats.split(",")
+                    ],
+                    [],
+                )
+                blinds = [True if c in blind_cats else False for c in channels]
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]
                 logging.debug(f"Plotting channels: {channels}")
@@ -434,8 +476,12 @@ def main():
                     labels = [args.catlabels for c in channels]
             else:
                 labels = [c for c in savenames]
-            labels = ["\n".join(lab.split("\\n")) for lab in labels]  # hacky but needed to pass \n from cmdline
-        assert len(channels) != 0, f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
+            labels = [
+                "\n".join(lab.split("\\n")) for lab in labels
+            ]  # hacky but needed to pass \n from cmdline
+        assert (
+            len(channels) != 0
+        ), f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
@@ -458,7 +504,9 @@ def main():
         TimeElapsedColumn(),
     ) as progress:
         prog_str_fmt = (
-            "[red]Plotting ({} workers): " if args.multiprocessing > 0 else "[red]Plotting: "
+            "[red]Plotting ({} workers): "
+            if args.multiprocessing > 0
+            else "[red]Plotting: "
         )
         prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
@@ -468,7 +516,14 @@ def main():
         ):
             # Wrap it in a function to enable parallel processing
             if label is None:
-                label = 1 if len(channel) < 6 else {s.split(":")[0]:s.split(":")[1] for s in args.cats.split(";")}[sname]
+                label = (
+                    1
+                    if len(channel) < 6
+                    else {
+                        s.split(":")[0]: s.split(":")[1] for s in args.cats.split(";")
+                    }[sname]
+                )
+
             def mod_plot(semaphore=None):
                 fig, (ax, rax) = plot.plot(
                     fd,
@@ -476,9 +531,11 @@ def main():
                     sigs=args.sigs.split(",") if args.sigs else None,
                     bkgs=args.bkgs.split(",") if args.bkgs else None,
                     onto=args.onto,
-                    project_signal=[float(v) for v in args.project_signals.split(",")]
-                    if args.project_signals
-                    else None,
+                    project_signal=(
+                        [float(v) for v in args.project_signals.split(",")]
+                        if args.project_signals
+                        else None
+                    ),
                     rmap=rmap,
                     blind=blind,
                     cats=channel,
@@ -523,7 +580,9 @@ def main():
 
                 # Save
                 for fmt in format:
-                    logging.debug(f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'")
+                    logging.debug(
+                        f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'"
+                    )
                     fig.savefig(
                         f"{args.output}/{fittype}/{sname}_{fittype}.{fmt}",
                         format=fmt,
@@ -540,10 +599,13 @@ def main():
                 _procs.append(p)
                 p.start()
                 time.sleep(0.1)
-                
+
                 n_running = sum([p.is_alive() for p in _procs])
                 progress.update(
-                    prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
+                    prog_plotting,
+                    completed=len(_procs) - n_running,
+                    refresh=True,
+                    description=prog_str_fmt.format(n_running),
                 )
                 time_check(progress, _procs, 6)
             else:
@@ -553,12 +615,21 @@ def main():
             while sum([p.is_alive() for p in _procs]) > 0:
                 n_running = sum([p.is_alive() for p in _procs])
                 progress.update(
-                    prog_plotting, completed=len(_procs) - n_running, refresh=True, description=prog_str_fmt.format(n_running),
+                    prog_plotting,
+                    completed=len(_procs) - n_running,
+                    refresh=True,
+                    description=prog_str_fmt.format(n_running),
                 )
                 time.sleep(0.1)
-                
+
                 time_check(progress, _procs, 6)
-        progress.update(prog_plotting, completed=len(all_channels), total=len(all_channels), refresh=True, description=prog_str_fmt.format(0))
+        progress.update(
+            prog_plotting,
+            completed=len(all_channels),
+            total=len(all_channels),
+            refresh=True,
+            description=prog_str_fmt.format(0),
+        )
 
 
 if __name__ == "__main__":

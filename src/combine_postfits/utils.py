@@ -228,8 +228,8 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                 "label": key,
                 "color": None,
                 "hatch": None,
-                # "yield": yield_dict[key],
-                # "sort_score": sort_score_dicts[key],
+                "yield": float(f"{yield_dict[key]:.4f}"),
+                # "sort_score": float(f"{sort_score_dicts[key]:.4f}"),
             }
     # Add total, total_signal, total_background at the end
     for key in ["total", "total_background"]:
@@ -237,7 +237,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             "label": key,
             "color": None,
             "hatch": None,
-            # "yield": yield_dict[key],
+            "yield": float(f"{yield_dict[key]:.4f}"),
             # "sort_score": sort_score_dicts[key],
         }
 

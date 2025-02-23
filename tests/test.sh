@@ -1,4 +1,4 @@
-P=10
+P=20
 DPI=100
 OPTS="--noroot"
 
@@ -18,8 +18,8 @@ if [ "$1" = "B" ] || [ "$1" = "all" ]; then
 fi
 
 if [ "$1" = "C" ] || [ "$1" = "all" ]; then
-    combine_postfits --dpi $DPI -i fitDiags/fit_diag_C.root -o outs/plots_C_all --MC    -p $P   $OPTS
-    combine_postfits --dpi $DPI -i fitDiags/fit_diag_C.root -o outs/plots_C --toys  --style styles/style_C.yml --xlabel 'Jet $m_{reg}$'   $OPTS
+    combine_postfits --dpi $DPI -i fitDiags/fit_diag_C.root -o outs/plots_C_all --MC  --chi2 --residuals   -p $P   $OPTS
+    combine_postfits --dpi $DPI -i fitDiags/fit_diag_C.root -o outs/plots_C --toys  --chi2 --residuals  --style styles/style_C.yml --xlabel 'Jet $m_{reg}$'   $OPTS
 fi
 
 if [ "$1" = "D" ] || [ "$1" = "all" ]; then

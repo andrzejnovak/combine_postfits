@@ -249,18 +249,18 @@ def main():
     parser_styling.add_argument(
         "--clipx",
         type=str2bool,
-        const="True",
+        const=True,
         nargs="?",
-        default="True",
+        default=True,
         choices=[True, False],
         help="Clip x-axis to range of data.",
     )
     parser_styling.add_argument(
         "--no_zero",
         type=str2bool,
-        const="True",
+        const=True,
         nargs="?",
-        default="False",
+        default=False,
         choices=[True, False],
         help="Hide zeroth tick on the y-axis.",
     )
@@ -282,8 +282,8 @@ def main():
         dest="chi2",
         type=str2bool,
         nargs="?",
-        const="True",
-        default="False",
+        const=True,
+        default=False,
         choices=[True, False],
         help="Display chi2 (when plotting multiple categories a per-category sum is displayed).",
     )
@@ -292,9 +292,9 @@ def main():
         dest="residuals",
         type=str2bool,
         nargs="?",
-        const="True",
-        default="False",
-        choices=["True", "False"],
+        const=True,
+        default=False,
+        choices=[True, False],
         help="Display data/MC residuals.",
     )
     parser_debug.add_argument(

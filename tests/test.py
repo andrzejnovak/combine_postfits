@@ -35,6 +35,7 @@ test_tuples = [
     )
     for example, fittype, name in test_tuples
 ]
+print(test_tuples[:2])
 
 
 @pytest.mark.parametrize(("example", "fittype", "name"), test_tuples)

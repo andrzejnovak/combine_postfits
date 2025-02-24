@@ -49,10 +49,11 @@ def test_image(example, name, fittype):
     result = compare_images(baseline_image_path, test_image_path, tol=0, in_decorator=True)
 
     if result is not None:
-        import os
+        import os, shutil
+        print(result.keys())
         os.makedirs(f"{path}/tests/failed", exist_ok=True)
         shutil.copy(result['diff'], f"{path}/tests/failed/")
-        shutil.copy(result['baseline'], f"{path}/tests/failed/")
-        shutil.copy(result['test'], f"{path}/tests/failed/")
+        shutil.copy(result['expected'], f"{path}/tests/failed/{name.replace('prefit', fittype).replace('.png', '-baseline.png')}")
+        shutil.copy(result['actual'], f"{path}/tests/failed/{name.replace('prefit', fittype).replace('.png', '-test.png')}")
 
     assert result is None, (result['rms'], result['diff'])

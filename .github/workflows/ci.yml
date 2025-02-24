@@ -129,7 +129,7 @@ jobs:
     - name: Run combine_postfits B
       run: |
         cd tests
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root -o outs/plots_B_all --MC  -p $P  
+        combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root -o outs/plots_B_all --data --unblind  -p $P  
         combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root --data --unblind -o outs/plots_B --style styles/style_B.yml  --xlabel 'Jet $m_{SD}$' --sigs b150,m150 --project-signals 2,2 --rmap 'm150:r_q,b150:r_b' --bkgs top,vlep,wqq,zqq,zbb,hbb --onto 2017_qcd --cats 'fail:ptbin*fail;passlow:ptbin*high*;passhigh:ptbin*passlow*'   -p $P
 
 
@@ -174,7 +174,7 @@ jobs:
     - name: Run combine_postfits C
       run: |
         cd tests
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root -o outs/plots_B_all --MC  -p $P  
+        combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root -o outs/plots_B_all --data --unblind  -p $P  
         combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root --data --unblind -o outs/plots_B --style styles/style_B.yml  --xlabel 'Jet $m_{SD}$' --sigs b150,m150 --project-signals 2,2 --rmap 'm150:r_q,b150:r_b' --bkgs top,vlep,wqq,zqq,zbb,hbb --onto 2017_qcd --cats 'fail:ptbin*fail;passlow:ptbin*high*;passhigh:ptbin*passlow*'   -p $P
         
 

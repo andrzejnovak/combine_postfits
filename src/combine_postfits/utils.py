@@ -237,7 +237,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             "label": key,
             "color": None,
             "hatch": None,
-            "yield": float(f"{yield_dict[key]:.4f}"),
+            # "yield": float(f"{yield_dict[key]:.4f}"),
             # "sort_score": sort_score_dicts[key],
         }
 

@@ -17,7 +17,7 @@ from .utils import cmap10
 from .utils import extract_mergemap, fill_colors
 from .utils import format_legend, format_categories
 from .utils import get_fit_val, get_fit_unc
-from .utils import getha, geths, merge_hists
+from .utils import getha, geths, geth, merge_hists
 
 np.seterr(divide="ignore", invalid="ignore")
 
@@ -67,6 +67,7 @@ def plot(
         bool | int | str
     ) = 2,  # Number of category names to display per line. Set ``False`` to disable cat info. Set to str to display custom text.
     chi2: bool = False,  # Calculate and display chi2 of data to total shapes
+    chi2_nocorr: bool = False,  # Calculate and display chi2 of data to total shape
     residuals: bool = False,  # Calculated and display chi2 of data to total shapes
 ) -> tuple:
     # Prep
@@ -635,7 +636,7 @@ def plot(
         loc="upper right",
         ncol=ncol,
         markerscale=0.8,
-        fontsize="x-small" if len(labels) > 2 else _legend_fontsize,
+        fontsize="xx-small" if len(labels) > 2 else _legend_fontsize,
         labelspacing=0.4,
         columnspacing=1.5,
     )
@@ -659,28 +660,55 @@ def plot(
         hep.plot.yscale_anchored_text(ax, soft_fail=True)
 
     # Fit info
-    if chi2:
-        _chi2_tot, _nbins = 0, 0
-        for channel in channels:
-            data = getha("data", [channel], restoreNorm=restoreNorm)
-            tot = getha("total", [channel], restoreNorm=restoreNorm)
-            chi2_raw = abs(data.values() - tot.values()) ** 2 / data.variances()
-            chi2_val = np.sum(np.nan_to_num(chi2_raw, posinf=0, neginf=0))
-            _chi2_tot += chi2_val
-            _nbins += len(data.values())
-        chi2_val = _chi2_tot
-        mean_chi2 = _chi2_tot / _nbins
-        logging.debug(f"  Chi2 ({cats[0]}): {chi2_val:.2f}")
-        logging.debug(f"  Mean Chi2 - chi2/nbins ({cats[0]}): {mean_chi2:.2f}")
+    if chi2 or chi2_nocorr:
+        def chi2_calc(chi2_nocorr):
+            # wrap to avoid global variables
+            _chi2_tot, _chi2_naive_tot, _nbins = 0, 0, 0
+            _chi2_cov_valid = True
+            for channel in channels:
+                data = getha("data", [channel], restoreNorm=restoreNorm)
+                tot = getha("total", [channel], restoreNorm=restoreNorm)
+                cov = geth("total_covar", channel, restoreNorm=False).values()
+                mask = ~np.isclose(data.values(), 0, atol=1e-4)
+                cov = cov[mask, :]
+                cov = cov[:, mask]
+                variances = data.variances()[mask]
+                diff = data.values()[mask] - tot.values()[mask]
+                chi2_naive = np.sum(np.nan_to_num(diff ** 2 / variances, posinf=0, neginf=0))
+                _chi2_naive_tot += chi2_naive
+                if not chi2_nocorr:
+                    try:
+                        chi2 = diff @ np.linalg.inv(cov+np.diag(variances)) @ diff
+                        _chi2_tot += chi2
+                    except np.linalg.LinAlgError:
+                        _chi2_cov_valid = False
+                        logging.warning(
+                            "  Covariance matrix is singular. Will report naive chi2."
+                        )
+                _nbins += len(diff)
+            logging.debug(f"  Chi2 ({cats[0]}): {_chi2_tot:.2f}")
+            logging.debug(f"  Chi2 (naive) ({cats[0]}): {_chi2_naive_tot:.2f}")
+            logging.debug(f"  Nbins ({cats[0]}): {_nbins:.0f}")
+            if chi2_nocorr:
+                return _chi2_naive_tot, _nbins, False
+            else:
+                return _chi2_tot, _nbins, _chi2_cov_valid
+        chi2_val, _nbins, _chi2_cov_valid = chi2_calc(chi2_nocorr)
+
+        if _chi2_cov_valid and not chi2_nocorr:
+            _chi2_str = r"$\frac{\chi^2}{N_{bins}}$ = "
+        else:
+            _chi2_str = r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = "
 
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            # r"$\chi^2_{no~corr}/Nbins$ = " + f"{chi2_val:.2f}/" + f"{_nbins:.2f}",
-            r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = "
-            + f"{chi2_val:.2f}/"
-            + f"{_nbins:.0f}",
+            _chi2_str
+            + r"$\frac{" + f"{chi2_val:.2f}" + r"}{" + f"{_nbins:.0f}" + r"}$",
+            # r"}{N_{bins}}$ = "
+            # + f"{chi2_val:.2f}/"
+            # + f"{_nbins:.0f}",
             loc="upper left",  # pad=0.8,
-            prop=dict(size="x-small", ha="center"),
+            prop=dict(size="xx-small", ha="center"),
             frameon=False,
         )
         rax.add_artist(at)
@@ -691,6 +719,7 @@ def plot(
     if residuals and not blind:
         resid_unc = np.zeros_like(data.values())
         resid = data.values() - tot.values()
+        logging.debug(f"  Residuals raw: {[f'{v:.2f}' for v in resid]}.")
         _lo, _hi = np.abs(
             hep.error_estimation.poisson_interval(data.values(), data.variances())
             - data.values()
@@ -699,6 +728,8 @@ def plot(
         resid_unc[resid > 0] = _lo[resid > 0]
         resid /= resid_unc
         logging.debug(f"  Residuals: {[f'{v:.2f}' for v in resid]}.")
+        resid = resid[~np.isclose(resid, 0, atol=1e-2)]
+        logging.debug(f"  Residuals (filter zeros): {[f'{v:.2f}' for v in resid]}.")
 
         resid_ax = hep.append_axes(rax, size="26%", extend=False, pad=0.05)
         plt.subplots_adjust(wspace=0)
@@ -722,7 +753,7 @@ def plot(
         )
         resid_ax.set_xlabel("Residuals", ha="right", x=1)
         _stat, p_value = stats.shapiro(resid)
-        _stat, p_value_ks = stats.kstest(resid, "norm", args=(0, 1))
+        _stat, p_value_ks = stats.kstest(resid, "norm", args=(0, np.std(resid)))
 
         anchored_text = AnchoredText(
             f"SW p-val = {p_value:.2f}\nKS p-val = {p_value_ks:.2f}",

@@ -288,6 +288,16 @@ def main():
         help="Display chi2 (when plotting multiple categories a per-category sum is displayed).",
     )
     parser_debug.add_argument(
+        "--chi2_nocorr",
+        dest="chi2_nocorr",
+        type=str2bool,
+        nargs="?",
+        const=True,
+        default=False,
+        choices=[True, False],
+        help="Use naive chi2 instead (no covariance matrix).",
+    )
+    parser_debug.add_argument(
         "--residuals",
         dest="residuals",
         type=str2bool,
@@ -343,6 +353,8 @@ def main():
     if args.debug:
         log_level = logging.DEBUG
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("fsspec").setLevel(logging.WARNING)
+    logging.getLogger("ROOT").setLevel(logging.WARNING)
     logging.basicConfig(
         level=log_level,
         format="%(message)s",
@@ -545,6 +557,7 @@ def main():
                     style=style,
                     cat_info=label,
                     chi2=args.chi2,
+                    chi2_nocorr=args.chi2_nocorr,
                     residuals=args.residuals,
                 )
                 if fig is None:

@@ -3,6 +3,8 @@ from typing import Union
 from PIL import Image
 import os
 import combine_postfits
+import matplotlib.pyplot as plt
+from matplotlib.testing.compare import compare_images
 
 # Base path
 path = os.path.dirname(os.path.dirname(combine_postfits.__path__[0]))
@@ -39,11 +41,18 @@ print(test_tuples[:2])
 
 
 @pytest.mark.parametrize(("example", "fittype", "name"), test_tuples)
-def test_image(image_diff, example, name, fittype):
-    image: Image or str or bytes = (
-        f"{path}/tests/baseline/{example}/{fittype}/{name.replace('prefit', fittype)}"
-    )
-    image2: Image or str or bytes = (
-        f"{path}/tests/outs/{example}/{fittype}/{name.replace('prefit', fittype)}"
-    )
-    assert image_diff(image, image2, threshold=0)
+def test_image(example, name, fittype):
+    baseline_image_path = f"{path}/tests/baseline/{example}/{fittype}/{name.replace('prefit', fittype)}"
+    test_image_path = f"{path}/tests/outs/{example}/{fittype}/{name.replace('prefit', fittype)}"
+
+    # Use pytest-mpl to compare images
+    result = compare_images(baseline_image_path, test_image_path, tol=0, in_decorator=True)
+
+    if result is not None:
+        import os
+        os.makedirs(f"{path}/tests/failed", exist_ok=True)
+        shutil.copy(result['diff'], f"{path}/tests/failed/")
+        shutil.copy(result['baseline'], f"{path}/tests/failed/")
+        shutil.copy(result['test'], f"{path}/tests/failed/")
+
+    assert result is None, (result['rms'], result['diff'])

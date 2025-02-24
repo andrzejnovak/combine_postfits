@@ -40,8 +40,7 @@ jobs:
     - name: Run combine_postfits A
       run: |
         cd tests
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_A.root -o outs/plots_A_all --data --unblind  -p $P  
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_A.root -o outs/plots_A --style styles/style_A.yml --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass:ptbin*pass2016;fail:ptbin*fail*;muCRpass:muonCRpass2016;muCRfail:muonCRfail2016' --bkgs top,other,wqq,wcq,zqq,zbb,hbb   --project-signal 50,0 -p $P
+        bash test.sh A
 
     - name : Run image checks A
       run: |
@@ -84,9 +83,7 @@ jobs:
     - name: Run combine_postfits Abig
       run: |
         cd tests
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_Abig.root -o outs/plots_Abig_all --data --unblind  -p $P  
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_Abig.root -o outs/plots_Abig --style styles/style_A.yml --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass16:ptbin*pass2016;fail16:ptbin*fail2016;pass17:ptbin*pass2017;fail17:ptbin*fail2017;pass18:ptbin*pass2018;fail18:ptbin*fail2018;pass:ptbin*pass*;fail:ptbin*fail*;muCRpass16:muonCRpass2016;muCRfail16:muonCRfail2016;muCRpass17:muonCRpass2017;muCRfail17:muonCRfail2017;muCRpass18:muonCRpass2018;muCRfail18:muonCRfail2018' --bkgs top,other,wqq,wcq,zqq,zbb,hbb   --project-signal 50,0 -p $P
-    
+        bash test.sh Abig
 
     - name : Run image checks Abig
       run: |
@@ -129,9 +126,7 @@ jobs:
     - name: Run combine_postfits B
       run: |
         cd tests
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root -o outs/plots_B_all --data --unblind  -p $P  
-        combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root --data --unblind -o outs/plots_B --style styles/style_B.yml  --xlabel 'Jet $m_{SD}$' --sigs b150,m150 --project-signals 2,2 --rmap 'm150:r_q,b150:r_b' --bkgs top,vlep,wqq,zqq,zbb,hbb --onto 2017_qcd --cats 'fail:ptbin*fail;passlow:ptbin*high*;passhigh:ptbin*passlow*'   -p $P
-
+        bash test.sh B
 
     - name : Run image checks B
       run: |
@@ -175,9 +170,6 @@ jobs:
       run: |
         cd tests
         bash test.sh C
-        # combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root -o outs/plots_B_all --data --unblind  -p $P  
-        # combine_postfits --dpi $DPI -i fitDiags/fit_diag_B.root --data --unblind -o outs/plots_B --style styles/style_B.yml  --xlabel 'Jet $m_{SD}$' --sigs b150,m150 --project-signals 2,2 --rmap 'm150:r_q,b150:r_b' --bkgs top,vlep,wqq,zqq,zbb,hbb --onto 2017_qcd --cats 'fail:ptbin*fail;passlow:ptbin*high*;passhigh:ptbin*passlow*'   -p $P
-        
 
     - name : Run image checks C
       run: |
@@ -221,9 +213,6 @@ jobs:
       run: |
         cd tests
         bash test.sh D
-        # combine_postfits --dpi $DPI -i fitDiags/fit_diag_D.root -o outs/plots_D_all --MC   -p $P
-        # combine_postfits --dpi $DPI -i fitDiags/fit_diag_D.root -o outs/plots_D --MC --style styles/style_D.yml --onto qcd --sigs VH --bkgs qcd,top,Wjets,Zjets,VV,H  --rmap 'VH:rVH' --project-signals 3 --xlabel 'Jet $m_{SD}$' -p $P --vv
-    
 
     - name : Run image checks D
       run: |

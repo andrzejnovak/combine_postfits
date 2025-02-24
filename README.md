@@ -14,44 +14,96 @@ also copied separately and edited as needed.
 
 
 ```bash
-usage: combine_postfits [-h] [-i INPUT] [--fit {fit_s,prefit,all}] [-o OUTPUT_FOLDER] [--cats CATS] [--sigs SIGS] [--project-signals PROJECT_SIGNALS] [--bkgs BKGS] [--onto ONTO] [-f {both,png,pdf}] [-s STYLE] [--cmap CMAP] [--clipx {False,True}] (--data | --MC | --toys)
-                        [--blind BLIND] [--year {,2018,2017,2016}] [--lumi LUMI] [--pub PUB] [--xlabel XLABEL] [--ylabel YLABEL] [--cmslabel CMSLABEL] [--verbose] [--debug] [-p]
+USAGE: combine_postfits [-h] [--input INPUT] [--output OUTPUT] [--fit {all,prefit,fit_s,fit_b}] [--cats CATS] [--format {png,pdf,both}] [-p [MULTIPROCESSING]]
+                        (--data | --MC | --toys) [--unblind] [--blind BLIND] [--sigs SIGS] [--project-signals PROJECT_SIGNALS] [--bkgs BKGS] [--onto ONTO] [--rmap RMAP]
+                        [--style STYLE] [--cmap CMAP] [--cmslabel CMSLABEL] [--year {2016,2017,2018,""}] [--pub PUB] [--lumi LUMI] [--xlabel XLABEL] [--ylabel YLABEL]
+                        [--catlabels CATLABELS] [--clipx [{True,False}]] [--no_zero [{True,False}]] [--dpi DPI] [--verbose] [--debug] [--chi2 [{True,False}]]
+                        [--residuals [{True,False}]] [--noroot]
 
-options:
+OPTIONS:
   -h, --help            show this help message and exit
-  -i INPUT, --input INPUT
-                        Input shapes file
-  --fit {fit_s,prefit,all}
-                        Shapes to plot
-  -o OUTPUT_FOLDER, --output-folder OUTPUT_FOLDER
-                        Folder to store plots - will be created if it doesn't exist.
-  --cats CATS           Either a comma-separated list of categories to plot or a mapping of categories to plot together, e.g. `cat1,cat2` in the form of `mcat1:cat1,cat2;mcat2:cat3,cat4`
-  --sigs SIGS           Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`
-  --project-signals PROJECT_SIGNALS, --project_signals PROJECT_SIGNALS
-                        Comma-separated list of values of equal length with --sigs, e.g. `1,1`
-  --bkgs BKGS           Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `ggH,VBF`
-  --onto ONTO           Bkg to plot other processes onto, e.g. `qcd`.
-  -f {both,png,pdf}, --format {both,png,pdf}
-                        Plot format
-  -s STYLE, --style STYLE
-                        Style file yaml e.g. `style.yml`
-  --cmap CMAP           Name of `cmap` to fill colors in `style.yml` from. Eg.: Tiepolo;Renoir;tab10
-  --clipx {False,True}  Clip x-axis to range of data
+  --input, -i INPUT     Input combine fitDiagnostics file (default: fitDiagnosticsTest.root)
+  --output, -o OUTPUT   Output folder (will becreated if it doesn't exist). (default: plots)
+  --fit {all,prefit,fit_s,fit_b}
+                        Shape set to plot. (default: all)
+  --cats CATS           Categories to plot. Either a comma-separated list of categories to plot (`cat1,cat2`) or a mapping of categories to plot and/or merge
+                        (`mcat1:cat1,cat2;mcat2:cat3,cat4`).
+  --format, -f {png,pdf,both}
+                        Plot output format (default: png)
+  -p [MULTIPROCESSING]  Use multiprocessing. May fail due to parallel reads from fitDiag. `-p` defaults to 10 processes.
+
+DATA:
+  What type of data is stored in 'data_obs' in the input file.
+
   --data
   --MC
   --toys
+  --unblind             Confirm wanting to plot real data
   --blind BLIND         Category to blind data (not plotted), e.g. `cat1`
-  --year {,2018,2017,2016}
-                        year label
-  --lumi LUMI           Luminosity for label
-  --pub PUB             arxiv no
-  --xlabel XLABEL       Plot x-label. If left `None` will read from combine. When using latex enclose string as 'str'.
+
+STACKING OPTIONS:
+  --sigs SIGS           Signals. Comma-separated list of keys available in provided --style sty.yml file, e.g. `ggH,VBF`
+  --project-signals, --project_signals PROJECT_SIGNALS
+                        Project signals onto the x-axis at scale. Comma-separated list of values of equal length with --sigs, e.g. `1,1`.
+  --bkgs BKGS           Backgrounds. Comma-separated list of keys available in provided `--style sty.yml` file, e.g. `qcd,ttbar`
+  --onto ONTO           Background to plot unfilled and stack other processes onto, e.g. `qcd`. Useful when one background is dominant.
+  --rmap RMAP           A dict-like string (`hbb:r_q,htt:r_t`) mapping signal keys in --sigs to POIs in --input fitDiagnostics file (requires ROOT).
+
+STYLING:
+  --style, -s STYLE     Style yaml file e.g. `style.yml`. Automatically created as `sty.yml` if not provided.
+  --cmap CMAP           Name of `cmap` to fill colors in `sty.yml` from. Eg.: Tiepolo;Renoir;tab10. Only used if `sty.yml` is not provided.
+  --cmslabel CMSLABEL   CMS Label. (default: Private Work)
+  --year {2016,2017,2018,""}
+                        Year label.
+  --pub PUB             Supplementary label - arxiv no.
+  --lumi LUMI           Luminosity for label.
+  --xlabel XLABEL       Plot x-label eg `$m_{\tau\bar{\tau}}^{reg}$`. If left `None` will read from combine. When using latex enclose string as 'str'.
   --ylabel YLABEL       Plot y-label. If left `None` will read from combine. When using latex enclose string as 'str'.
-  --cmslabel CMSLABEL   CMS Label
-  --verbose, -v         Verbose logging
-  --debug, -vv          Debug logging
-  -p                    Use multiprocessing to make plots. May fail due to parallel reads from fitDiag.
+  --catlabels CATLABELS
+                        Category label to replace automated labelling. To pass per-category label, use `;` separator.
+  --clipx [{True,False}]
+                        Clip x-axis to range of data. (default: True)
+  --no_zero [{True,False}]
+                        Hide zeroth tick on the y-axis.
+  --dpi DPI             DPI for png format. (default: 300)
+
+DEBUG OPTIONS:
+  --verbose, -v, -_v    Verbose logging
+  --debug, -vv, --vv    Debug logging
+  --chi2 [{True,False}]
+                        Display chi2 (when plotting multiple categories a per-category sum is displayed).
+  --residuals [{True,False}]
+                        Display data/MC residuals.
+  --noroot              Skip ROOT dependency
+
+EXAMPLES::
+
+  Minimal example:
+  ``
+  combine_postfits -i fitDiagnosticsTest.root --toys
+  ``
+
+  Basic usage (modify generated `sty.yml` file) with debug options on:
+  ``
+  combine_postfits -i fitDiagnosticsTest.root --sigs hbb --bkgs qcd,wjets,zjets,ttbar --rmap 'hbb:r' --onto qcd --style sty.yml
+  --data --unblind
+  --cmslabel 'Private Work' --year 2016 --lumi 35.9 --xlabel '$m_{b\bar{b}}^{reg}$'
+  --chi2 True --residuals True -p
+  ``
+
+  Extended example with category merging and signal mapping
+  ``
+  combine_postfits -i fitDiagnosticsTest.root -o final_plots --style sty.yml
+  --data --unblind --sigs hbb,zbb --bkgs top,ttbat,wjets,wcq,zjets_other --onto qcd
+  --rmap zbb:r_z,hbb:r  --project-signal 50,0
+  --cats 'pass16:ptbin*pass2016;pass:ptbin*pass*;fail:ptbin*fail*;muCRpass16:muonCRpass2016'
+  -p 20
+  ``
+
+  For more examples see https://github.com/andrzejnovak/combine_postfits/blob/master/tests/test.sh
+
   ```
+```
 
 
 

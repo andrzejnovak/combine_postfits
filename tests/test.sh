@@ -3,7 +3,7 @@ DPI=100
 OPTS="--noroot"
 
 if [ "$1" = "A" ] || [ "$1" = "all" ]; then
-    combine_postfits --dpi $DPI -i fitDiags/fit_diag_A.root -o outs/plots_A_all --data --unblind  -p $P   $OPTS  
+    combine_postfits --dpi $DPI -i fitDiags/fit_diag_A.root -o outs/plots_A_all --data --unblind  --chi2 --residuals  -p $P   $OPTS   
     combine_postfits --dpi $DPI -i fitDiags/fit_diag_A.root -o outs/plots_A --style styles/style_A.yml --data --unblind --sigs hcc,zcc --onto qcd --rmap zcc:z,hcc:r  --cats 'pass:ptbin*pass2016;fail:ptbin*fail*;muCRpass:muonCRpass2016;muCRfail:muonCRfail2016' --bkgs top,other,wqq,wcq,zqq,zbb,hbb   --project-signal 50,0 -p $P   $OPTS
 fi
 

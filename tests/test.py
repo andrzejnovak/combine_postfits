@@ -56,4 +56,4 @@ def test_image(example, name, fittype):
         shutil.copy(result['expected'], f"{path}/tests/failed/{name.replace('prefit', fittype).replace('.png', '-baseline.png')}")
         shutil.copy(result['actual'], f"{path}/tests/failed/{name.replace('prefit', fittype).replace('.png', '-test.png')}")
 
-    assert result is None, (result['rms'], result['diff'])
+    assert result is None, f"RMS: {result['rms']}, Tol: {result['tol']}"

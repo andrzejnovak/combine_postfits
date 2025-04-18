@@ -408,9 +408,9 @@ def main():
         style["data"]["label"] = "Data"
 
     if args.blind is not None:
-        blind_cats = args.blind.split(",") if "," in args.blind else [args.blind]
+        blind_cat_patterns = args.blind.split(",") if "," in args.blind else [args.blind]
     else:
-        blind_cats = []
+        blind_cat_patterns = []
 
     # Parse rmap
     if args.rmap is not None:
@@ -439,6 +439,10 @@ def main():
         available_channels = [
             c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
         ]
+        blinded_channels = []
+        for pattern in blind_cat_patterns:
+            blinded_channels.extend(fnmatch.filter(available_channels, pattern))   
+        blind_cats = list(set(blinded_channels))
         logging.debug(f"Available '{fit_type}' channels: {available_channels}")
         # Take all unless blinded
         if args.cats is None:

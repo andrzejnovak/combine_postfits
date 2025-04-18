@@ -612,7 +612,7 @@ def plot(
                     r"$\mu_{%s}$ = " % style[sig]["label"].replace("$", "")
                     + r"${%s}_{%s}^{%s}$" % (_r, _d, _u)
                 )
-            if len(mu_strs) > 0:
+            if len(mu_strs) > 0 and not blind:
                 fig.canvas.draw()
                 bbox = leg.get_window_extent().transformed(ax.transAxes.inverted())
                 x, y = bbox.xmin + bbox.width / 2, bbox.ymin
@@ -660,7 +660,7 @@ def plot(
         hep.plot.yscale_anchored_text(ax, soft_fail=True)
 
     # Fit info
-    if chi2 or chi2_nocorr:
+    if (chi2 or chi2_nocorr) and not blind:
         def chi2_calc(chi2_nocorr):
             # wrap to avoid global variables
             _chi2_tot, _chi2_naive_tot, _nbins = 0, 0, 0

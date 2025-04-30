@@ -23,7 +23,7 @@ USAGE: combine_postfits [-h] [--input INPUT] [--output OUTPUT] [--fit {all,prefi
 OPTIONS:
   -h, --help            show this help message and exit
   --input, -i INPUT     Input combine fitDiagnostics file (default: fitDiagnosticsTest.root)
-  --output, -o OUTPUT   Output folder (will becreated if it doesn't exist). (default: plots)
+  --output, -o OUTPUT   Output folder (will becreated if it doesn\'t exist). (default: plots)
   --fit {all,prefit,fit_s,fit_b}
                         Shape set to plot. (default: all)
   --cats CATS           Categories to plot. Either a comma-separated list of categories to plot (`cat1,cat2`) or a mapping of categories to plot and/or merge

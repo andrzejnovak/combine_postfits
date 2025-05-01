@@ -16,7 +16,7 @@ import argparse
 from rich_argparse_plus import RichHelpFormatterPlus
 
 RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
-from combine_postfits import plot, utils
+from combine_postfits import plot_postfits, utils
 
 import click
 from rich.logging import RichHandler
@@ -75,13 +75,13 @@ def sci_notation(number, sig_fig=1, no_zero=False):
     b = int(b)
     if float(a) == 0:
         if no_zero:
-            return "\ "
+            return r"\ "
         else:
             return "0"
     elif float(a) == 1:
         return "10^{" + str(b) + "}"
     else:
-        return a + "\,x\," + "10^{" + str(b) + "}"
+        return a + r"\,x\," + "10^{" + str(b) + "}"
 
 
 def get_digits(number):
@@ -208,11 +208,17 @@ def main():
         help="CMS Label.",
     )
     parser_styling.add_argument(
+        "--com",
+        "--center-of-mass",
+        default="13",
+        type=str,
+        help="C-o-M label. Eg. `13` (TeV)",
+    )
+    parser_styling.add_argument(
         "--year",
         default=None,
-        choices=["2016", "2017", "2018", '""'],
         type=str,
-        help="Year label.",
+        help="Year label. Eg. '2017' or 'Run2' or '2022+2023'",
     )
     parser_styling.add_argument(
         "--pub",
@@ -380,6 +386,7 @@ def main():
         format = [args.format]
 
     # Make plots
+    
     fd = uproot.open(args.input)
     if ROOT_AVAILABLE and not args.noroot:
         rfd = r.TFile.Open(args.input)
@@ -541,7 +548,7 @@ def main():
                 )
 
             def mod_plot(semaphore=None):
-                fig, (ax, rax) = plot.plot(
+                fig, (ax, rax) = plot_postfits.plot(
                     fd,
                     fittype,
                     sigs=args.sigs.split(",") if args.sigs else None,
@@ -577,6 +584,7 @@ def main():
                     ax=ax,
                     lumi=args.lumi,
                     lumi_format="{:0.0f}",
+                    com=args.com,
                     pub=args.pub,
                     year=args.year,
                 )

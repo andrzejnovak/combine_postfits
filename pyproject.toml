@@ -5,6 +5,7 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 combine_postfits = "combine_postfits.make_plots:main"
+combine_postfits_cov = "combine_postfits.plot_cov:main"
 
 [project.urls]
 Homepage = "https://github.com/andrzejnovak/combine_postfits"
@@ -26,7 +27,7 @@ authors = [
 maintainers = [
   { name = "Andrzej Novak", email = "andrzej.novak@cern.ch" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 
 classifiers = [
   "Development Status :: 4 - Beta",

@@ -1,3 +1,4 @@
+import argparse
 import logging
 import uproot
 import matplotlib.pyplot as plt
@@ -20,6 +21,17 @@ cmap10 = [
     "#717581",
     "#92dadd",
 ]
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 def adjust_lightness(color, amount=0.5):
@@ -162,6 +174,8 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     def linearity(h):
         _h = h.values()
         x = np.arange(len(_h))
+        if len(_h) <=1:
+            return 0
         try:
             coef = np.polyfit(x, _h, 1)
         except:  # noqa
@@ -193,7 +207,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                 if f"shapes_{fit}/{ch}/{k}" in fitDiag
                 and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
                 and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
+            ] + [0]  # pad 0 to prevent mean on empty list
         )
         for k in sample_keys
     }

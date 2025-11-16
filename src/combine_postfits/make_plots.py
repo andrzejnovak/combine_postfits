@@ -160,7 +160,7 @@ def main():
         dest="blind_data",
         type=str,
         default=None,
-        help="Range of data to blind in a category, e.g. `cat1:3:6j;cat2:3:6j;cat3:1,2,3,4`",
+        help="Range of data to blind in a category, e.g. `cat1:3:6` (bins 3-5 by index), `cat2:3j:6j` (bins with edges 3-6 by value). Multiple categories: `cat1:1:5;cat2:2:4`",
     )
     parser_plot = parser.add_argument_group("Stacking options")
     parser_plot.add_argument(
@@ -375,9 +375,9 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
     )
-    if not args.pseudo and not args.unblind:
+    if not args.pseudo and not args.unblind and args.blind is None and args.blind_data is None:
         unblind_conf = Confirm.ask(
-            "Option `--blind` is not set, while plotting with `--data`. "
+            "Option `--blind` or `--blind-data` is not set, while plotting with `--data`. "
             "Hi Eric, are you sure you want to unblind? (pass `--unblind` to suppress this prompt)"
         )
         assert unblind_conf, "Unblind option not confirmed. Exiting."
@@ -473,9 +473,15 @@ def main():
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
             blind_mapping_flattened = {}
-            for pattern, slice_string in blind_mapping.items():
-                for channel in fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern):
-                    blind_mapping_flattened[channel] = slice_string
+            if args.cats is not None:
+                for pattern, slice_string in blind_mapping.items():
+                    for channel in fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern):
+                        blind_mapping_flattened[channel] = slice_string
+            else:
+                # If no --cats specified, try matching against available_channels
+                for pattern, slice_string in blind_mapping.items():
+                    for channel in fnmatch.filter(available_channels, pattern):
+                        blind_mapping_flattened[channel] = slice_string
             logging.debug(f"Blind mapping flattened: {blind_mapping_flattened}")
         else:
             blind_mapping_flattened = []
@@ -546,6 +552,7 @@ def main():
     logging.debug(f"All Savenames: {all_savenames}")
     logging.debug(f"All Labels: {all_labels}")
     all_blind_ranges = [blind_mapping_flattened[channel] if channel in blind_mapping_flattened else None for channel in all_savenames] if blind_mapping is not None else [None for _ in all_savenames]
+    logging.debug(f"All Blind Ranges: {all_blind_ranges}")
     _procs = []
     with Progress(
         TextColumn("[progress.description]{task.description}"),

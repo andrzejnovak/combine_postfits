@@ -11,6 +11,7 @@ import numpy as np
 from scipy import stats
 from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
+from mplhep.error_estimation import poisson_interval
 import hist
 from copy import deepcopy
 
@@ -438,7 +439,7 @@ def plot(
         # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
         rh = data.values() - tot_bkg.values()
         _lo, _hi = np.abs(
-            hep.error_estimation.poisson_interval(data.values(), data.variances())
+            poisson_interval(data.values(), data.variances())
             - data.values()
         )
         rh_unc[rh < 0] = _hi[rh < 0]
@@ -748,7 +749,7 @@ def plot(
         resid = data.values() - tot.values()
         logging.debug(f"  Residuals raw: {[f'{v:.2f}' for v in resid]}.")
         _lo, _hi = np.abs(
-            hep.error_estimation.poisson_interval(data.values(), data.variances())
+            poisson_interval(data.values(), data.variances())
             - data.values()
         )
         resid_unc[resid < 0] = _hi[resid < 0]

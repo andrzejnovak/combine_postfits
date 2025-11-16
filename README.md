@@ -40,6 +40,12 @@ DATA:
   --toys
   --unblind             Confirm wanting to plot real data
   --blind BLIND         Category to blind data (not plotted), e.g. `cat1`
+  --blind-data, --blind_data BLIND_DATA
+                        Range of data to blind in a category. Format: `cat:start:stop` where start:stop can be:
+                        - By bin index: `cat1:1:15` (blinds bins 1 to 14, Python slice convention, stop is exclusive)
+                        - By value: `cat1:1j:15j` (blinds bins with left edges between 1.0 and 15.0)
+                        - Multiple categories: `cat1:1:15;cat2:5:10`
+                        Examples: `pass:1:16` blinds bins 1-15 by index, `pass:1j:15j` blinds bins with edges 1-15 by value
 
 STACKING OPTIONS:
   --sigs SIGS           Signals. Comma-separated list of keys available in provided --style sty.yml file, e.g. `ggH,VBF`

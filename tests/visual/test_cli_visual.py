@@ -11,6 +11,7 @@ Usage:
 
 import pytest
 import subprocess
+import sys
 from pathlib import Path
 import shutil
 from matplotlib.testing.compare import compare_images
@@ -67,21 +68,22 @@ def cli_runner():
             return cache[test_case.name]
 
         cmd = [
-            "combine_postfits",
+            str(Path(sys.executable).parent / "combine_postfits"),
             "-i", f"fitDiags/{test_case.fitdiag}",
             "-o", f"outs/{test_case.name}",
         ]
         if test_case.style:
             cmd.extend(["--style", f"styles/{test_case.style}"])
         cmd.extend(test_case.cli_args)
-        cmd.extend(["--dpi", "100", "-p", "0", "--noroot"])
+        cmd.extend(["--dpi", "100", "-p", "10", "--noroot"])
 
         result = subprocess.run(
             cmd,
             cwd=TESTS_DIR,
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=120,
+            timeout=300,
         )
         cache[test_case.name] = result
         return result
@@ -102,15 +104,14 @@ def test_visual_regression(test_case, fit_type, image_name, cli_runner):
     if not baseline.exists():
         pytest.skip(f"Baseline not found: {baseline}")
 
-    # Generate if needed
-    if not output.exists():
-        result = cli_runner(test_case)
-        if result.returncode != 0:
-            pytest.fail(
-                f"CLI failed:\n"
-                f"Command: {test_case.to_cli_command()}\n"
-                f"Stderr: {result.stderr}"
-            )
+    # Always regenerate to catch code regressions
+    result = cli_runner(test_case)
+    if result.returncode != 0:
+        pytest.fail(
+            f"CLI failed:\n"
+            f"Command: {test_case.to_cli_command()}\n"
+            f"Stderr: {result.stderr}"
+        )
 
     if not output.exists():
         pytest.fail(f"Output not generated: {output}")

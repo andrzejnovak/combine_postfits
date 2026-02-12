@@ -1,230 +1,80 @@
-env:
-  DPI: 100
-  P: 4
 name: CI
 
 on:
   push:
-    branches:
-      - 'master*'
+    branches: [ master ]
   pull_request:
-  # Run daily at 0:01 UTC
+    branches: [ master ]
   schedule:
-  - cron:  '1 0 * * *'
+    - cron: '1 0 * * *'  # Daily at 0:01 UTC
   workflow_dispatch:
 
 jobs:
-  testA:
-    name: "🐍 ${{ matrix.python-version }} • Test A • ${{ matrix.runs-on }}"
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        runs-on: [ubuntu-latest]
-        python-version: ["3.10", "3.11"]
-
+  quick:
+    name: Quick Tests
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.39.0
+          cache: true
+          
+      - name: Run quick tests
+        run: pixi run test-quick
+        
+      - name: Upload failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failures-quick
+          path: tests/failed/
+          retention-days: 3
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip wheel pytest-github-actions-annotate-failures
-        python -m pip install -q --no-cache-dir -e .[all]
-        python -m pip list
-
-    - name: Run combine_postfits A
-      run: |
-        cd tests
-        bash test.sh A
-
-    - name : Run image checks A
-      run: |
-        cd tests
-        python test.py
-        python -m pytest -rsx -n auto test.py
-
-    - name: Upload pytest test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: "results-${{ matrix.python-version }}-TestA-${{ matrix.runs-on }}"
-        retention-days: 3
-        path: tests/failed
-
-  testAbig:
-    name: "🐍 ${{ matrix.python-version }} • Test A(big) • ${{ matrix.runs-on }}"
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        runs-on: [ubuntu-latest]
-        python-version: ["3.11"]
-
+  standard:
+    name: Standard Tests
+    needs: quick
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.39.0
+          cache: true
+          
+      - name: Run standard tests
+        run: pixi run test
+        
+      - name: Upload failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failures-standard
+          path: tests/failed/
+          retention-days: 3
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip wheel pytest-github-actions-annotate-failures
-        python -m pip install -q --no-cache-dir -e .[all]
-        python -m pip list
-  
-
-    - name: Run combine_postfits Abig
-      run: |
-        cd tests
-        bash test.sh Abig
-
-    - name : Run image checks Abig
-      run: |
-        cd tests
-        python test.py
-        python -m pytest -rsx -n auto test.py
-
-    - name: Upload pytest test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: "results-${{ matrix.python-version }}-TestAbig-${{ matrix.runs-on }}"
-        retention-days: 3
-        path: tests/failed
-
-  testB:
-    name: "🐍 ${{ matrix.python-version }} • Test B • ${{ matrix.runs-on }}"
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        runs-on: [ubuntu-latest]
-        python-version: ["3.11"]
-
+  full:
+    name: Full Tests
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip wheel pytest-github-actions-annotate-failures
-        python -m pip install -q --no-cache-dir -e .[all]
-        python -m pip list
-  
-
-    - name: Run combine_postfits B
-      run: |
-        cd tests
-        bash test.sh B
-
-    - name : Run image checks B
-      run: |
-        cd tests
-        python test.py
-        python -m pytest -rsx -n auto test.py
-
-    - name: Upload pytest test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: "results-${{ matrix.python-version }}-TestB-${{ matrix.runs-on }}"
-        retention-days: 3
-        path: tests/failed
-
-  testC:
-    name: "🐍 ${{ matrix.python-version }} • Test C • ${{ matrix.runs-on }}"
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        runs-on: [ubuntu-latest]
-        python-version: ["3.11"]
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip wheel pytest-github-actions-annotate-failures
-        python -m pip install -q --no-cache-dir -e .[all]
-        python -m pip list
-  
-
-    - name: Run combine_postfits C
-      run: |
-        cd tests
-        bash test.sh C
-
-    - name : Run image checks C
-      run: |
-        cd tests
-        python test.py
-        python -m pytest -rsx -n auto test.py
-
-    - name: Upload pytest test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: "results-${{ matrix.python-version }}-TestC-${{ matrix.runs-on }}"
-        retention-days: 3
-        path: tests/failed
-
-  testD:
-    name: "🐍 ${{ matrix.python-version }} • Test D • ${{ matrix.runs-on }}"
-    runs-on: ${{ matrix.runs-on }}
-    strategy:
-      matrix:
-        runs-on: [ubuntu-latest]
-        python-version: ["3.11"]
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip wheel pytest-github-actions-annotate-failures
-        python -m pip install -q --no-cache-dir -e .[all]
-        python -m pip list
-
-
-    - name: Run combine_postfits D
-      run: |
-        cd tests
-        bash test.sh D
-
-    - name : Run image checks D
-      run: |
-        cd tests
-        python test.py
-        python -m pytest -rsx -n auto test.py
-
-
-    - name: Upload pytest test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: "results-${{ matrix.python-version }}-TestD-${{ matrix.runs-on }}"
-        retention-days: 3
-        path: tests/failed
+      - uses: actions/checkout@v4
+      
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.39.0
+          cache: true
+          
+      - name: Run full tests
+        run: pixi run test-full
+        
+      - name: Upload failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failures-full
+          path: tests/failed/
+          retention-days: 3

@@ -167,7 +167,7 @@ def plot(
             _th = float(remove_tiny[:-1]) * 0.005 * np.sum(data.values())
         elif remove_tiny is True:
             _th = 0.05 * np.sum(data.values())
-        elif np.isnumeric(remove_tiny):
+        elif isinstance(remove_tiny, (int, float)):
             _th = remove_tiny
         else:
             raise ValueError(f"Kwarg `remove_tiny={remove_tiny}` not understood.")
@@ -660,7 +660,7 @@ def plot(
             frameon=False,
         )
         ax.add_artist(at)
-        hep.plot.yscale_anchored_text(ax, soft_fail=True)
+        hep.yscale_anchored_text(ax, soft_fail=True)
 
     # Fit info
     if (chi2 or chi2_nocorr) and not blind:
@@ -715,7 +715,7 @@ def plot(
             frameon=False,
         )
         rax.add_artist(at)
-        hep.plot.yscale_anchored_text(rax, soft_fail=True)
+        hep.yscale_anchored_text(rax, soft_fail=True)
 
     ax.set_ylim(0, ax.get_ylim()[-1] * 1.05)
 
@@ -776,7 +776,7 @@ def plot(
         )
         resid_ax.xaxis.minorticks_off()
         resid_ax.tick_params(top=False)
-        hep.plot.yscale_anchored_text(resid_ax, soft_fail=True)
+        hep.yscale_anchored_text(resid_ax, soft_fail=True)
 
     logging.debug(f"  DEBUG: Main plotting done")
     return fig, (ax, rax)

@@ -154,6 +154,14 @@ def main():
         default=None,
         help="Category to blind data (not plotted), e.g. `cat1`",
     )
+    parser_data.add_argument(
+        "--blind-data",
+        "--blind_data",
+        dest="blind_data",
+        type=str,
+        default=None,
+        help="Range of data to blind in a category, e.g. `cat1:3:6` (bins 3-5 by index), `cat2:3j:6j` (bins with edges 3-6 by value). Multiple categories: `cat1:1:5;cat2:2:4`",
+    )
     parser_plot = parser.add_argument_group("Stacking options")
     parser_plot.add_argument(
         "--sigs",
@@ -367,9 +375,9 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
     )
-    if not args.pseudo and not args.unblind:
+    if not args.pseudo and not args.unblind and args.blind is None and args.blind_data is None:
         unblind_conf = Confirm.ask(
-            "Option `--blind` is not set, while plotting with `--data`. "
+            "Option `--blind` or `--blind-data` is not set, while plotting with `--data`. "
             "Hi Eric, are you sure you want to unblind? (pass `--unblind` to suppress this prompt)"
         )
         assert unblind_conf, "Unblind option not confirmed. Exiting."
@@ -418,12 +426,22 @@ def main():
         blind_cat_patterns = args.blind.split(",") if "," in args.blind else [args.blind]
     else:
         blind_cat_patterns = []
+    logging.debug(f"Blind categories matching: {blind_cat_patterns}")
+
+    if args.blind_data is not None:
+        blind_mapping = {}
+        for _mapping in args.blind_data.split(";"):
+            cat_pattern, slice_string = _mapping.split(":", 1)
+            blind_mapping[cat_pattern] = slice_string
+        logging.debug(f"Blind data mapping:\n{blind_mapping}")
+    else:
+        blind_mapping = None
 
     # Parse rmap
     if args.rmap is not None:
-        kvs = args.rmap.split(",")
+        kvs = args.rmap.split(",")      
         rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
-
+        logging.debug(f"Signal-to-POI mapping:\n{rmap}")
     else:
         rmap = None
     if args.sigs is not None:
@@ -437,7 +455,7 @@ def main():
 
     # Get types/cats/blinds unwrapped
     all_channels = []
-    all_blinds = []
+    all_blinds = []  # blind category
     all_types = []
     all_savenames = []
     all_labels = []
@@ -446,11 +464,27 @@ def main():
         available_channels = [
             c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
         ]
+        logging.debug(f"Available '{fit_type}' channels: {available_channels}")
         blinded_channels = []
         for pattern in blind_cat_patterns:
-            blinded_channels.extend(fnmatch.filter(available_channels, pattern))   
+            blinded_channels.extend(fnmatch.filter(available_channels, pattern))
+            blinded_channels.extend(fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern))  # allow merged cats
         blind_cats = list(set(blinded_channels))
-        logging.debug(f"Available '{fit_type}' channels: {available_channels}")
+        logging.debug(f"Categories to blind: {blind_cats}")
+        if blind_mapping is not None:
+            blind_mapping_flattened = {}
+            if args.cats is not None:
+                for pattern, slice_string in blind_mapping.items():
+                    for channel in fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern):
+                        blind_mapping_flattened[channel] = slice_string
+            else:
+                # If no --cats specified, try matching against available_channels
+                for pattern, slice_string in blind_mapping.items():
+                    for channel in fnmatch.filter(available_channels, pattern):
+                        blind_mapping_flattened[channel] = slice_string
+            logging.debug(f"Blind mapping flattened: {blind_mapping_flattened}")
+        else:
+            blind_mapping_flattened = []
         # Take all unless blinded
         if args.cats is None:
             channels = [[c] for c in available_channels]
@@ -479,6 +513,7 @@ def main():
                     blinds.append(True if mcat in blind_cats else False)
                     savenames.append(mcat)
                     logging.debug(f"Plotting merged channels '{mcat}': {cats}")
+                    continue
             # list
             else:
                 channels = sum(
@@ -516,7 +551,8 @@ def main():
     logging.debug(f"All Types: {all_types}")
     logging.debug(f"All Savenames: {all_savenames}")
     logging.debug(f"All Labels: {all_labels}")
-
+    all_blind_ranges = [blind_mapping_flattened[channel] if channel in blind_mapping_flattened else None for channel in all_savenames] if blind_mapping is not None else [None for _ in all_savenames]
+    logging.debug(f"All Blind Ranges: {all_blind_ranges}")
     _procs = []
     with Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -534,8 +570,8 @@ def main():
         prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
         semaphore = Semaphore(args.multiprocessing)
-        for fittype, channel, blind, sname, label in zip(
-            all_types, all_channels, all_blinds, all_savenames, all_labels
+        for fittype, channel, blind, blind_range, sname, label in zip(
+            all_types, all_channels, all_blinds, all_blind_ranges, all_savenames, all_labels
         ):
             # Wrap it in a function to enable parallel processing
             if label is None:
@@ -562,6 +598,7 @@ def main():
                         ),
                         rmap=rmap,
                         blind=blind,
+                        blind_data=blind_range,
                         cats=channel,
                         restoreNorm=True,
                         clipx=args.clipx,

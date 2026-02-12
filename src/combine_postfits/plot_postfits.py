@@ -11,6 +11,7 @@ import numpy as np
 from scipy import stats
 from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
+from mplhep.error_estimation import poisson_interval
 import hist
 from copy import deepcopy
 
@@ -19,6 +20,7 @@ from .utils import extract_mergemap, fill_colors
 from .utils import format_legend, format_categories
 from .utils import get_fit_val, get_fit_unc
 from .utils import getha, geths, geth, merge_hists
+from .utils import _string_to_slice, _ensure_slice_by_ix  # Hist masking
 
 np.seterr(divide="ignore", invalid="ignore")
 
@@ -52,6 +54,7 @@ def plot(
         list[float | int] | None
     ) = None,  # Plot projected total signal on x-axis, scale by `project_signal`
     blind: bool = False,  # Blind data
+    blind_data: str | None = None,  # slice in a string form, either by binix `5:10` by value `5j:10j`, as a list 3,4,5,6
     remove_tiny: (
         bool | float | int | str
     ) = False,  # Remove enteries with total yield below treshold eg. {False | 10 | '5%'}
@@ -71,6 +74,16 @@ def plot(
     chi2_nocorr: bool = False,  # Calculate and display chi2 of data to total shape
     residuals: bool = False,  # Calculated and display chi2 of data to total shapes
 ) -> tuple:
+    ####
+    # import inspect
+    # frame = inspect.currentframe()
+    # # Get argument values from the frame
+    # args, _, _, values = inspect.getargvalues(frame)
+    # # Print all arguments with names
+    # for arg in args:
+    #     print(f"{arg} = {values[arg]}")
+    # return
+    ####
     # Prep
     style = style.copy()
     fit_shapes_name = f"shapes_{fit_type}"
@@ -327,8 +340,15 @@ def plot(
             linewidth=_linewidth,
         )
     if not blind:
+        if blind_data is not None:
+            _data = deepcopy(data)
+            _sl = _ensure_slice_by_ix(_string_to_slice(blind_data), _data.axes[0].edges)
+            _data.view().value[_sl] = np.nan
+            _data.view().variance[_sl] = np.nan
+        else:
+            _data = data
         hep.histplot(
-            data,
+            _data,
             ax=ax,
             label="data",
             xerr=True,
@@ -419,12 +439,15 @@ def plot(
         # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
         rh = data.values() - tot_bkg.values()
         _lo, _hi = np.abs(
-            hep.error_estimation.poisson_interval(data.values(), data.variances())
+            poisson_interval(data.values(), data.variances())
             - data.values()
         )
         rh_unc[rh < 0] = _hi[rh < 0]
         rh_unc[rh > 0] = _lo[rh > 0]
         rh /= rh_unc
+        if blind_data is not None:
+            _sl = _ensure_slice_by_ix(_string_to_slice(blind_data), data.axes[0].edges)
+            rh[_sl] = np.nan
         ## Plotting subplot
         hep.histplot(
             rh,
@@ -459,12 +482,14 @@ def plot(
             for k, h in zip(sigs_original, _hatch)
         ]
         _lw = [0 if h not in ["none", None] else 0 for h in _hatch]
+        _rh_unc = rh_unc if not blind else np.ones_like(rh_unc)
         hep.histplot(
             [
-                hist_dict_fcn(sig, global_scale=False, th=0.05) / rh_unc
+                hist_dict_fcn(sig, global_scale=False, th=0.05).values() / _rh_unc
                 for sig in sigs_original
             ],
             ax=rax,
+            bins=hist_dict_fcn(sigs_original[0], global_scale=False, th=0.05).axes[0].edges,
             facecolor=_facecolor,
             edgecolor=_edgecolor,
             hatch=_hatch,
@@ -548,7 +573,7 @@ def plot(
     limlo, limhi = rax.get_ylim()
     if "rh" in locals():
         rax.set_ylim(
-            np.min([-2, np.nanmin(rh) * 1.5 - 1]), np.max([2, 1 + np.nanmax(rh) * 1.5])
+            np.nanmin([-2, np.nanmin(rh) * 1.5 - 1]), np.nanmax([2, 1 + np.nanmax(rh) * 1.5])
         )
     else:
         rax.set_ylim(np.min([-2, limlo]), np.max([2, limhi * 1.8]))
@@ -724,7 +749,7 @@ def plot(
         resid = data.values() - tot.values()
         logging.debug(f"  Residuals raw: {[f'{v:.2f}' for v in resid]}.")
         _lo, _hi = np.abs(
-            hep.error_estimation.poisson_interval(data.values(), data.variances())
+            poisson_interval(data.values(), data.variances())
             - data.values()
         )
         resid_unc[resid < 0] = _hi[resid < 0]

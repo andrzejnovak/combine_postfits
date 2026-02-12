@@ -109,12 +109,7 @@ All test cases are centrally defined in `test_cases.py`. Each case includes:
 | **plots_A** | 8 | ~5s | Real data with H/Z signals, unblinding (STANDARD) |
 | **plots_C** | 18 | ~8s | Chi-squared and residual plots (STANDARD) |
 | **plots_D** | 12 | ~6s | VH analysis with custom signals (STANDARD) |
-| **plots_B_all** | 30 | ~15s | All B categories, auto-styling (FULL) |
-| **plots_A_all** | 28 | ~12s | All A categories with chi2 (FULL) |
-| **plots_Abig** | 28 | ~15s | Multi-year analysis 2016/17/18 (FULL) |
-| **plots_Abig_all** | 84 | ~40s | All Abig categories - stress test (FULL) |
-| **plots_C_all** | 18 | ~8s | All C categories (FULL) |
-| **plots_D_all** | 12 | ~6s | All D categories (FULL) |
+
 
 ## Visual Regression Testing
 

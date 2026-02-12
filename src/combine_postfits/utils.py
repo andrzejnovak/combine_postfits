@@ -470,3 +470,15 @@ def merge_hists(hist_dict, merge_map):
         else:
             logging.warning(f"  No histograms available for merge {v} -> '{k}'.")
     return hist_dict
+
+
+def _string_to_slice(s: str) -> slice:
+    parts = s.split(':')
+    parts = [complex(p) if p else None for p in parts]
+    return slice(*parts)
+
+
+def _ensure_slice_by_ix(s: slice, edges: np.ndarray) -> slice:
+    start = s.start.real if s.start.imag == 0 else np.searchsorted(edges, s.start.imag, side="right") - 1
+    stop = s.stop.real if s.stop.imag == 0 else np.searchsorted(edges, s.stop.imag, side="right") 
+    return slice(int(start), int(stop), s.step)

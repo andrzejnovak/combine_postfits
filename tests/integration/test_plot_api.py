@@ -7,7 +7,6 @@ as expected without performing image comparisons.
 
 import pytest
 import matplotlib.pyplot as plt
-import numpy as np
 from pathlib import Path
 from combine_postfits.plot_postfits import plot
 
@@ -127,7 +126,7 @@ class TestPlotContent:
 
     def test_axis_labels_set(self, fitdiag_A, minimal_style):
         """Axes should have labels set."""
-        fig, (ax, rax) = plot(
+        _, (ax, rax) = plot(
             fitdiag_A,
             fit_type="prefit",
             cats=["ptbin0pass2016"],
@@ -140,7 +139,7 @@ class TestPlotContent:
 
     def test_axis_limits_set(self, fitdiag_A, minimal_style):
         """Axes should have limits set."""
-        fig, (ax, rax) = plot(
+        _, (ax, rax) = plot(
             fitdiag_A,
             fit_type="prefit",
             cats=["ptbin0pass2016"],
@@ -199,7 +198,7 @@ class TestPlotChi2:
 
     def test_chi2_option(self, fitdiag_A, minimal_style):
         """plot() should calculate chi2 when requested."""
-        fig, (ax, rax) = plot(
+        _, (ax, rax) = plot(
             fitdiag_A,
             fit_type="prefit",
             cats=["ptbin0pass2016"],
@@ -211,7 +210,7 @@ class TestPlotChi2:
 
     def test_chi2_nocorr_option(self, fitdiag_A, minimal_style):
         """plot() should calculate naive chi2 when requested."""
-        fig, (ax, rax) = plot(
+        _, (ax, rax) = plot(
             fitdiag_A,
             fit_type="prefit",
             cats=["ptbin0pass2016"],

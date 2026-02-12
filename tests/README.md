@@ -173,14 +173,8 @@ cat tests/examples.sh
 
 ### Auto-Generated
 
-**Important**: `examples.sh` is auto-generated from `test_cases.py`.
-
-To modify examples:
-1. Edit `test_cases.py`
-2. Run: `pixi run update-examples`
-3. The script will regenerate `examples.sh`
-
-This ensures test definitions and CLI examples stay in sync.
+`examples.sh` provides runnable examples corresponding to the test cases.
+It is hand-maintained but should be kept in sync with `test_cases.py`.
 
 ## Modifying Tests
 
@@ -188,20 +182,18 @@ This ensures test definitions and CLI examples stay in sync.
 
 1. **Edit `test_cases.py`**:
    ```python
-   TEST_CASES["plots_E"] = TestCase(
+   TEST_CASES["plots_E"] = VisualTestCase(
        name="plots_E",
        fitdiag="fit_diag_E.root",
        style="style_E.yml",
+       tier="standard",
        cli_args=["--MC", "--chi2"],
        description="New test case for feature X",
-       tags=["standard", "full", "feature_X"],
    )
    ```
 
-2. **Regenerate examples.sh**:
-   ```bash
-   pixi run update-examples
-   ```
+2. **Add to examples.sh**:
+   Copy an existing block in `tests/examples.sh` and update it for the new case.
 
 3. **Generate baselines**:
    ```bash
@@ -218,7 +210,8 @@ This ensures test definitions and CLI examples stay in sync.
 ### Modifying Existing Test
 
 1. Edit the test case in `test_cases.py`
-2. Run `pixi run update-examples`
+2. **Update examples.sh**:
+   Update the corresponding entry in `tests/examples.sh`.
 3. Regenerate baselines for that case
 4. Verify tests pass
 

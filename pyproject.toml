@@ -84,4 +84,5 @@ markers = [
     "quick: Smoke test (1 visual case)",
     "standard: Handpicked visual cases",
     "full: All visual cases (244 images)",
+    "visual: Visual regression tests",
 ]

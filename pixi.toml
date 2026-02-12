@@ -41,7 +41,7 @@ test-quick = "pytest tests/unit/ tests/integration/ -v && pytest tests/visual/ -
 # TASK 3: Full test matrix
 # Everything including edge cases (~244 images)
 # Use for: Pre-release validation, debugging comprehensive issues
-test-full = "pytest tests/ -m ''"
+test-full = "pytest tests/ -m 'full or not full'"
 
 [environments]
 default = { features = ["test"], solve-group = "default" }

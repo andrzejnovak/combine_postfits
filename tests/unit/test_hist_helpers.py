@@ -4,7 +4,6 @@
 import pytest
 import numpy as np
 import hist
-import uproot
 from combine_postfits.utils import (
     geth,
     getha,

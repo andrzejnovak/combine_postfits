@@ -72,6 +72,13 @@ def cli_runner():
             "-i", f"fitDiags/{test_case.fitdiag}",
             "-o", f"outs/{test_case.name}",
         ]
+        
+        # Clear output directory to ensure fresh run
+        out_path = OUTS_DIR / test_case.name
+        if out_path.exists():
+            shutil.rmtree(out_path)
+        out_path.mkdir(parents=True, exist_ok=True)
+
         if test_case.style:
             cmd.extend(["--style", f"styles/{test_case.style}"])
         cmd.extend(test_case.cli_args)

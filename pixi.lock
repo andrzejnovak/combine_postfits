@@ -1279,8 +1279,8 @@ packages:
   timestamp: 1733218222191
 - pypi: ./
   name: combine-postfits
-  version: 0.1.dev100+gf2d793b67
-  sha256: dd011757f378543ec0093cf661ff119b3416b91e9adc7f8bbbbc07e4bb0362ee
+  version: 0.1.dev101+g145e2e3a1.d20260213
+  sha256: eb9b9f3e0073ee10e11156f807ccc9645c69b82457b1c6e289dd7797d7c4f313
   requires_dist:
   - hist
   - mplhep>=1.0.0

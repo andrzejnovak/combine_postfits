@@ -5,14 +5,18 @@ These tests require native ROOT and are marked accordingly.
 They are excluded from the default test run; use `pixi run test-root` to include them.
 """
 
-import pytest
 import shutil
+
 import matplotlib
-matplotlib.use('Agg')
+import pytest
+
+matplotlib.use("Agg")
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import mplhep as hep
-from pathlib import Path
 from matplotlib.testing.compare import compare_images
+
 from tests.conftest import VISUAL_TOLERANCE
 
 TESTS_DIR = Path(__file__).parent.parent
@@ -22,7 +26,7 @@ FITDIAGS = TESTS_DIR / "fitDiags"
 @pytest.fixture(autouse=True)
 def cleanup_plots():
     yield
-    plt.close('all')
+    plt.close("all")
 
 
 @pytest.mark.root
@@ -32,6 +36,7 @@ class TestPlotCov:
     def test_returns_axes(self):
         """plot_cov() should return a matplotlib Axes."""
         from combine_postfits.plot_cov import plot_cov
+
         ax = plot_cov(str(FITDIAGS / "fit_diag_A.root"), fit_type="fit_s")
         assert ax is not None
         assert isinstance(ax, plt.Axes)
@@ -39,6 +44,7 @@ class TestPlotCov:
     def test_include_filter(self):
         """plot_cov() should filter nuisances by include pattern."""
         from combine_postfits.plot_cov import plot_cov
+
         ax = plot_cov(
             str(FITDIAGS / "fit_diag_A.root"),
             fit_type="fit_s",
@@ -52,6 +58,7 @@ class TestPlotCov:
     def test_exclude_filter(self):
         """plot_cov() should exclude nuisances matching exclude pattern."""
         from combine_postfits.plot_cov import plot_cov
+
         ax = plot_cov(
             str(FITDIAGS / "fit_diag_A.root"),
             fit_type="fit_s",
@@ -64,6 +71,7 @@ class TestPlotCov:
     def test_empty_keys_raises(self):
         """plot_cov() should raise when no keys remain after filtering."""
         from combine_postfits.plot_cov import plot_cov
+
         with pytest.raises((AssertionError, KeyError)):
             plot_cov(
                 str(FITDIAGS / "fit_diag_A.root"),
@@ -74,6 +82,7 @@ class TestPlotCov:
     def test_fit_b_type(self):
         """plot_cov() should work with fit_b fit type."""
         from combine_postfits.plot_cov import plot_cov
+
         ax = plot_cov(str(FITDIAGS / "fit_diag_A.root"), fit_type="fit_b")
         assert ax is not None
 
@@ -116,9 +125,7 @@ class TestPlotCovVisual:
         baseline = BASELINE_DIR / "cov_A_fit_s.png"
         assert baseline.exists(), f"Baseline missing: {baseline}"
 
-        diff = compare_images(
-            str(baseline), str(output), tol=VISUAL_TOLERANCE, in_decorator=True
-        )
+        diff = compare_images(str(baseline), str(output), tol=VISUAL_TOLERANCE, in_decorator=True)
         if diff is not None:
             # Copy failed output for debugging
             shutil.copy2(str(output), str(FAILED_DIR / "cov_A_fit_s.png"))
@@ -131,41 +138,80 @@ class TestCovCLI:
 
     def test_cli_produces_output(self, tmp_path):
         """combine_postfits_cov should produce a PNG file."""
-        import subprocess, sys
+        import subprocess
+        import sys
+
         cli = str(Path(sys.executable).parent / "combine_postfits_cov")
         result = subprocess.run(
-            [cli, "-i", str(FITDIAGS / "fit_diag_A.root"),
-             "-o", str(tmp_path / "cov_out"), "--data",
-             "--fit", "fit_s", "--dpi", "72"],
-            capture_output=True, text=True, timeout=60,
+            [
+                cli,
+                "-i",
+                str(FITDIAGS / "fit_diag_A.root"),
+                "-o",
+                str(tmp_path / "cov_out"),
+                "--data",
+                "--fit",
+                "fit_s",
+                "--dpi",
+                "72",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
         assert (tmp_path / "cov_out").exists()
 
     def test_cli_include_filter(self, tmp_path):
         """combine_postfits_cov --include should filter nuisances."""
-        import subprocess, sys
+        import subprocess
+        import sys
+
         cli = str(Path(sys.executable).parent / "combine_postfits_cov")
         result = subprocess.run(
-            [cli, "-i", str(FITDIAGS / "fit_diag_A.root"),
-             "-o", str(tmp_path / "cov_out"), "--MC",
-             "--fit", "fit_s", "--dpi", "72",
-             "--include", "r,z"],
-            capture_output=True, text=True, timeout=60,
+            [
+                cli,
+                "-i",
+                str(FITDIAGS / "fit_diag_A.root"),
+                "-o",
+                str(tmp_path / "cov_out"),
+                "--MC",
+                "--fit",
+                "fit_s",
+                "--dpi",
+                "72",
+                "--include",
+                "r,z",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
 
     def test_cli_exclude_filter(self, tmp_path):
         """combine_postfits_cov --exclude should exclude nuisances."""
-        import subprocess, sys
+        import subprocess
+        import sys
+
         cli = str(Path(sys.executable).parent / "combine_postfits_cov")
         result = subprocess.run(
-            [cli, "-i", str(FITDIAGS / "fit_diag_A.root"),
-             "-o", str(tmp_path / "cov_out"), "--MC",
-             "--fit", "fit_s", "--dpi", "72",
-             "--exclude", "*mcstat*,qcdparam*"],
-            capture_output=True, text=True, timeout=60,
+            [
+                cli,
+                "-i",
+                str(FITDIAGS / "fit_diag_A.root"),
+                "-o",
+                str(tmp_path / "cov_out"),
+                "--MC",
+                "--fit",
+                "fit_s",
+                "--dpi",
+                "72",
+                "--exclude",
+                "*mcstat*,qcdparam*",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
-
-

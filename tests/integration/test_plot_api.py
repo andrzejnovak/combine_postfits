@@ -5,9 +5,11 @@ These tests verify the plot() function returns correct values and behaves
 as expected without performing image comparisons.
 """
 
-import pytest
-import matplotlib.pyplot as plt
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pytest
+
 from combine_postfits.plot_postfits import plot
 
 TESTS_DIR = Path(__file__).parent.parent
@@ -17,7 +19,7 @@ TESTS_DIR = Path(__file__).parent.parent
 def cleanup_plots():
     """Reset matplotlib state between tests to prevent leakage"""
     yield
-    plt.close('all')
+    plt.close("all")
 
 
 @pytest.fixture
@@ -329,4 +331,3 @@ class TestPlotBlindData:
             style=minimal_style,
         )
         assert fig is not None
-

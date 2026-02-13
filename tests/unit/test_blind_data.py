@@ -1,9 +1,10 @@
 # tests/unit/test_blind_data.py
 """Unit tests for blind-data slice parsing functions."""
 
-import pytest
 import numpy as np
-from combine_postfits.utils import _string_to_slice, _ensure_slice_by_ix
+import pytest
+
+from combine_postfits.utils import _ensure_slice_by_ix, _string_to_slice
 
 
 class TestStringToSlice:

@@ -7,11 +7,16 @@ platforms = ["linux-64"]
 
 [tasks]
 generate-baselines = "./tests/examples.sh all"
+lint = "ruff check . && ruff format --check ."
+lint-fix = "ruff check --fix . && ruff format ."
+pre-commit-install = "prek install"
 
 [dependencies]
 python = ">=3.10,<3.13"
 pip = "*"
 root = ">=6.26"
+ruff = "*"
+prek = "*"
 
 # Core dependencies
 numpy = "*"

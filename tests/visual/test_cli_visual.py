@@ -9,15 +9,16 @@ Usage:
     pixi run test-full     # Unit + integration + all visuals
 """
 
-import pytest
+import shutil
 import subprocess
 import sys
 from pathlib import Path
-import shutil
+
+import pytest
 from matplotlib.testing.compare import compare_images
 
-from tests.test_cases import TEST_CASES
 from tests.conftest import VISUAL_TOLERANCE
+from tests.test_cases import TEST_CASES
 
 TESTS_DIR = Path(__file__).parent.parent
 BASELINE_DIR = TESTS_DIR / "baseline"
@@ -48,11 +49,11 @@ def generate_test_params():
         for fit_type in ["prefit", "fit_s"]:
             for img in discover_images(case.name, fit_type):
                 marks = [pytest.mark.visual] + TIER_MARKERS[case.tier]
-                params.append(pytest.param(
-                    case, fit_type, img,
-                    marks=marks,
-                    id=f"{case.name}-{fit_type}-{img.replace('.png', '')}"
-                ))
+                params.append(
+                    pytest.param(
+                        case, fit_type, img, marks=marks, id=f"{case.name}-{fit_type}-{img.replace('.png', '')}"
+                    )
+                )
     return params
 
 
@@ -68,10 +69,12 @@ def cli_runner():
 
         cmd = [
             str(Path(sys.executable).parent / "combine_postfits"),
-            "-i", f"fitDiags/{test_case.fitdiag}",
-            "-o", f"outs/{test_case.name}",
+            "-i",
+            f"fitDiags/{test_case.fitdiag}",
+            "-o",
+            f"outs/{test_case.name}",
         ]
-        
+
         # Clear output directory to ensure fresh run
         out_path = OUTS_DIR / test_case.name
         if out_path.exists():
@@ -101,7 +104,7 @@ def cli_runner():
 def test_visual_regression(test_case, fit_type, image_name, cli_runner):
     """
     Verify CLI produces pixel-perfect images matching baselines.
-    
+
     Zero tolerance: any pixel difference fails the test.
     """
     baseline = BASELINE_DIR / test_case.name / fit_type / image_name
@@ -113,11 +116,7 @@ def test_visual_regression(test_case, fit_type, image_name, cli_runner):
     # Always regenerate to catch code regressions
     result = cli_runner(test_case)
     if result.returncode != 0:
-        pytest.fail(
-            f"CLI failed:\n"
-            f"Command: {test_case.to_cli_command()}\n"
-            f"Stderr: {result.stderr}"
-        )
+        pytest.fail(f"CLI failed:\nCommand: {test_case.to_cli_command()}\nStderr: {result.stderr}")
 
     if not output.exists():
         pytest.fail(f"Output not generated: {output}")
@@ -132,9 +131,9 @@ def test_visual_regression(test_case, fit_type, image_name, cli_runner):
         if fail_dir.exists():
             shutil.rmtree(fail_dir)
         fail_dir.mkdir(parents=True)
-        shutil.copy(diff['expected'], fail_dir / "baseline.png")
-        shutil.copy(diff['actual'], fail_dir / "result.png")
-        shutil.copy(diff['diff'], fail_dir / "diff.png")
+        shutil.copy(diff["expected"], fail_dir / "baseline.png")
+        shutil.copy(diff["actual"], fail_dir / "result.png")
+        shutil.copy(diff["diff"], fail_dir / "diff.png")
 
         pytest.fail(
             f"Image mismatch (RMS: {diff['rms']:.6f})\n"

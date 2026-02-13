@@ -1,12 +1,12 @@
 import argparse
 import logging
-import uproot
-import matplotlib.pyplot as plt
-import numpy as np
-import hist
-from cycler import cycler
 from pkgutil import iter_modules
 
+import hist
+import matplotlib.pyplot as plt
+import numpy as np
+import uproot
+from cycler import cycler
 
 cmap6 = ["#5790fc", "#f89c20", "#e42536", "#964a8b", "#9c9ca1", "#7a21dd"]
 cmap10 = [
@@ -35,12 +35,13 @@ def str2bool(v):
 
 
 def adjust_lightness(color, amount=0.5):
-    import matplotlib.colors as mc
     import colorsys
+
+    import matplotlib.colors as mc
 
     try:
         c = mc.cnames[color]
-    except:
+    except Exception:
         c = color
     c = colorsys.rgb_to_hls(*mc.to_rgb(c))
     rgb = colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
@@ -82,31 +83,21 @@ def clean_yaml(style):
 
 
 def extract_mergemap(style):
-    compound_keys = [
-        key
-        for key in style
-        if "contains" in style[key] and style[key]["contains"] is not None
-    ]
+    compound_keys = [key for key in style if "contains" in style[key] and style[key]["contains"] is not None]
     return {key: style[key]["contains"] for key in compound_keys}
 
 
 def fill_colors(style, cmap=None, no_duplicates=True):
     if cmap is None:
         cmap = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    taken = [
-        style[key]["color"]
-        for key in style
-        if "color" in style[key] and style[key]["color"] is not None
-    ]
+    taken = [style[key]["color"] for key in style if "color" in style[key] and style[key]["color"] is not None]
     cmap_clean = cmap.copy()
     if no_duplicates:
         for c in taken:
             if c in cmap_clean:
                 cmap_clean.remove(c)
     if len(cmap_clean) == 0:
-        logging.error(
-            "len(cmap) after cleaning is 0. Either pass longer 'cmap' or set `no_duplicates=False`."
-        )
+        logging.error("len(cmap) after cleaning is 0. Either pass longer 'cmap' or set `no_duplicates=False`.")
         cmap_clean = cmap
     cycler_iter = cycler("color", cmap_clean)()
     counter = 0
@@ -119,22 +110,16 @@ def fill_colors(style, cmap=None, no_duplicates=True):
                 f'Key "color" not found for sample "{key}". Setting to: {pop_col}',
             )
             style[key]["color"] = (
-                pop_col["color"]
-                if pop_col["color"] not in taken
-                else adjust_lightness(pop_col["color"], 1.4)
+                pop_col["color"] if pop_col["color"] not in taken else adjust_lightness(pop_col["color"], 1.4)
             )
             taken.append(pop_col["color"])
     if counter > len(cmap):
         logging.warning(
-            f"'cmap' is too short. There will be {counter-len(cmap)} duplicate colors shown in lighter shades.",
+            f"'cmap' is too short. There will be {counter - len(cmap)} duplicate colors shown in lighter shades.",
         )
-    for key, color, label in zip(
-        ["data", "total_signal"], ["k", "red"], ["Data", "Signal"]
-    ):
+    for key, color, label in zip(["data", "total_signal"], ["k", "red"], ["Data", "Signal"]):
         if key not in style:
-            logging.warning(
-                f"Sample: '{key}' is not present in style_dict. It will be created with default values."
-            )
+            logging.warning(f"Sample: '{key}' is not present in style_dict. It will be created with default values.")
             style[key] = {"color": color, "label": label}
     return style
 
@@ -152,17 +137,13 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
 
     fit_types = ["prefit", "fit_s", "fit_b"]
     avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
-    avail_channels = [
-        ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0
-    ]
+    avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
     def get_samples_fitDiag(fitDiag):
         snames = []
         for fit in avail_fit_types:
             try:
-                for ch in [
-                    ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0
-                ]:
+                for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
                     snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
             except KeyError:
                 print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
@@ -174,7 +155,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     def linearity(h):
         _h = h.values()
         x = np.arange(len(_h))
-        if len(_h) <=1:
+        if len(_h) <= 1:
             return 0
         try:
             coef = np.polyfit(x, _h, 1)
@@ -207,7 +188,8 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                 if f"shapes_{fit}/{ch}/{k}" in fitDiag
                 and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
                 and "total" not in k  # Sum only TH1s, data is black anyway
-            ] + [0]  # pad 0 to prevent mean on empty list
+            ]
+            + [0]  # pad 0 to prevent mean on empty list
         )
         for k in sample_keys
     }
@@ -219,17 +201,10 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             sort_score_dicts[k] = v
     if sort:
         if not sort_peaky:
-            logging.info(f"Sorting samples by yield")
+            logging.info("Sorting samples by yield")
         else:
-            logging.info(
-                f"EXPERIMENTAL: Sorting samples by a hybrid score: log(yield) * peakiness"
-            )
-        keys_sorted = [
-            k
-            for k, v in sorted(
-                sort_score_dicts.items(), key=lambda item: item[1], reverse=True
-            )
-        ]
+            logging.info("EXPERIMENTAL: Sorting samples by a hybrid score: log(yield) * peakiness")
+        keys_sorted = [k for k, v in sorted(sort_score_dicts.items(), key=lambda item: item[1], reverse=True)]
     else:
         keys_sorted = sample_keys
     # Fill dummy style dict
@@ -260,17 +235,13 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         colors = cmap
     # mpl maps
     elif cmap in plt.matplotlib.colormaps:
-        colors = plt.matplotlib.colormaps[cmap].resampled(len(keys_sorted))(
-            range(len(keys_sorted))
-        )
+        colors = plt.matplotlib.colormaps[cmap].resampled(len(keys_sorted))(range(len(keys_sorted)))
     # metbrewer maps
     elif isinstance(cmap, str) and module_exists("met_brewer"):
         import met_brewer
 
         if cmap in met_brewer.MET_PALETTES:
-            colors = met_brewer.met_brew(
-                name=cmap, n=len(keys_sorted), brew_type="discrete"
-            )
+            colors = met_brewer.met_brew(name=cmap, n=len(keys_sorted), brew_type="discrete")
         else:
             colors = None
     else:
@@ -284,9 +255,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             has_met_brewer = module_exists("met_brewer")
             if has_met_brewer:
                 avail += met_brewer.MET_PALETTES
-            logging.warning(
-                f"cmap `{cmap}` not found. Available colormaps are {avail}."
-            )
+            logging.warning(f"cmap `{cmap}` not found. Available colormaps are {avail}.")
             if not has_met_brewer:
                 logging.warning(
                     "Additional cmap are available from the `met_brewer` package when installed: "
@@ -426,24 +395,14 @@ def geth(name, shapes_dir, restoreNorm=True):
 def getha(name, channels, restoreNorm=True):
     for shapes_dir in channels:
         if name not in shapes_dir:
-            logging.debug(
-                f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped."
-            )
-    return sum(
-        [
-            geth(name, shapes_dir, restoreNorm=restoreNorm)
-            for shapes_dir in channels
-            if name in shapes_dir
-        ]
-    )
+            logging.debug(f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped.")
+    return sum([geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir])
 
 
 def geths(names, channels, restoreNorm=True, style_dict=None):
     if style_dict is not None:
         sorted_names = [k for k, v in style_dict.items() if k in names]
-        assert len(sorted_names) == len(
-            names
-        ), f"Sorting incomplete: {names} -> {sorted_names}"
+        assert len(sorted_names) == len(names), f"Sorting incomplete: {names} -> {sorted_names}"
         names = sorted_names
     if isinstance(channels, list):  # channels = [shapes_dir, shapes_dir]
         return {name: getha(name, channels, restoreNorm=restoreNorm) for name in names}
@@ -454,9 +413,7 @@ def geths(names, channels, restoreNorm=True, style_dict=None):
 def merge_hists(hist_dict, merge_map):
     for k, v in merge_map.items():
         if k in hist_dict and k != v[0]:
-            logging.warning(
-                f"  Mapping `'{k}' : {v}` will replace existing histogram: '{k}'."
-            )
+            logging.warning(f"  Mapping `'{k}' : {v}` will replace existing histogram: '{k}'.")
         to_merge = []
         for name in v:
             if name not in hist_dict:
@@ -473,12 +430,12 @@ def merge_hists(hist_dict, merge_map):
 
 
 def _string_to_slice(s: str) -> slice:
-    parts = s.split(':')
+    parts = s.split(":")
     parts = [complex(p) if p else None for p in parts]
     return slice(*parts)
 
 
 def _ensure_slice_by_ix(s: slice, edges: np.ndarray) -> slice:
     start = s.start.real if s.start.imag == 0 else np.searchsorted(edges, s.start.imag, side="right") - 1
-    stop = s.stop.real if s.stop.imag == 0 else np.searchsorted(edges, s.stop.imag, side="right") 
+    stop = s.stop.real if s.stop.imag == 0 else np.searchsorted(edges, s.stop.imag, side="right")
     return slice(int(start), int(stop), s.step)

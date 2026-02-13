@@ -86,3 +86,27 @@ markers = [
     "root: Tests requiring native ROOT dependency",
     "visual: Visual regression tests",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "E741",   # ambiguous variable name (common in physics: l, r, etc.)
+    "F841",   # local variable assigned but never used (common in dev)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["combine_postfits"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/make_plots.py" = ["E402"]
+"**/plot_cov.py" = ["E402"]
+"**/plot_postfits.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+

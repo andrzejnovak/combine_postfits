@@ -61,7 +61,10 @@ testx = [
   "pytest-xdist",
 ]
 all = [
-  "combine_postfits[test,testx]"
+  "combine_postfits[test,testx,root]"
+]
+root = [
+  "root",
 ]
 
 

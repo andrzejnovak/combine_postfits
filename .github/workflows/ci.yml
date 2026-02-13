@@ -22,8 +22,16 @@ jobs:
           cache: true
           
       - name: Run quick tests
-        run: pixi run test-quick
+        run: pixi run test-quick --junitxml=test-results-quick.xml
         
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-quick
+          path: test-results-quick.xml
+          retention-days: 7
+
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4
@@ -46,8 +54,16 @@ jobs:
           cache: true
           
       - name: Run standard tests
-        run: pixi run test
+        run: pixi run test --junitxml=test-results-standard.xml
         
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-standard
+          path: test-results-standard.xml
+          retention-days: 7
+
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4
@@ -56,8 +72,8 @@ jobs:
           path: tests/failed/
           retention-days: 3
 
-  full:
-    name: Full Tests
+  root:
+    name: ROOT Tests
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -68,13 +84,21 @@ jobs:
           pixi-version: v0.62.2
           cache: true
           
-      - name: Run full tests
-        run: pixi run test-full
+      - name: Run all tests including ROOT-dependent
+        run: pixi run test-full --junitxml=test-results-root.xml
         
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-root
+          path: test-results-root.xml
+          retention-days: 7
+
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failures-full
+          name: failures-root
           path: tests/failed/
           retention-days: 3

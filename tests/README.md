@@ -46,12 +46,11 @@ tests/
 - **Images**: ~44 baseline images
 - **Use**: Pre-commit checks, CI/CD pipelines
 
-### Full (Pre-release)
-- **Command**: `pixi run test-full`
+### ROOT (Full Validation)
+- **Command**: `pixi run test-root`
 - **Duration**: ~2 minutes
-- **Coverage**: Everything including edge cases and stress tests
-- **Images**: ~244 baseline images
-- **Use**: Before releases, debugging comprehensive issues
+- **Coverage**: Everything including ROOT-dependent tests (plot_cov, rmap)
+- **Use**: Full validation including features requiring native ROOT
 
 ## Running Tests
 
@@ -64,8 +63,8 @@ pixi run test-quick          # Fast smoke test
 # Before commit
 pixi run test                # Standard test matrix
 
-# Before release
-pixi run test-full           # Full comprehensive tests
+# Full validation (including ROOT-dependent tests)
+pixi run test-root           # All tests including ROOT
 ```
 
 ### Granular Control (Direct Pytest)
@@ -75,12 +74,7 @@ pixi run test-full           # Full comprehensive tests
 pytest tests/unit/                     # Unit tests only
 pytest tests/integration/              # Integration tests only
 pytest tests/visual/                   # Visual tests (standard)
-pytest tests/visual/ -m full           # Visual tests (full matrix)
-
-# Feature-specific
-pytest tests/ -m feature_chi2          # Chi2 tests
-pytest tests/ -m feature_toys          # Toys data tests
-pytest tests/ -m feature_data          # Real data tests
+pytest tests/ -m root                  # ROOT-dependent tests only
 
 # By name pattern
 pytest -k "test_chi2"                  # Tests matching pattern
@@ -246,7 +240,7 @@ cp -r outs/<case>/* baseline/<case>/
 **Solution**: Use selective testing
 ```bash
 pixi run test-quick          # Quick mode
-pytest -m 'not full'         # Exclude full matrix
+pytest -m 'not root'         # Exclude ROOT tests
 pytest tests/unit/           # Unit tests only
 ```
 
@@ -269,8 +263,8 @@ combine_postfits --help
 Recommended workflow:
 
 ```yaml
-# .github/workflows/test.yml
-name: Tests
+# .github/workflows/ci.yml
+name: CI
 
 on: [push, pull_request]
 
@@ -278,10 +272,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.4.1
+        uses: prefix-dev/setup-pixi@v0.9.4
 
       - name: Quick tests (on every push)
         run: pixi run test-quick
@@ -290,9 +284,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: pixi run test
 
-      - name: Full tests (on release)
-        if: github.event_name == 'release'
-        run: pixi run test-full
+      - name: ROOT tests (on schedule/dispatch)
+        if: github.event_name == 'schedule'
+        run: pixi run test-root
 ```
 
 ## Development Workflow
@@ -307,8 +301,8 @@ pixi run test                    # Standard checks (~30s)
 # 3. Before creating PR
 pixi run test                    # Verify no regressions
 
-# 4. Before release
-pixi run test-full               # Comprehensive validation (~2min)
+# 4. Full validation (including ROOT features)
+pixi run test-root               # All tests including ROOT-dependent
 ```
 
 ## Test Statistics
@@ -329,6 +323,5 @@ pixi run test-full               # Comprehensive validation (~2min)
 
 ## Further Reading
 
-- **Test redesign plan**: See `TESTING_REDESIGN_PLAN.md`
 - **Pytest markers**: See `pyproject.toml` for all available markers
 - **Pytest docs**: https://docs.pytest.org/

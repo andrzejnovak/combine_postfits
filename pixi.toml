@@ -31,17 +31,22 @@ pillow = "*"
 # TASK 1: Standard test (DEFAULT)
 # Unit + integration + core visual tests (~44 images)
 # Use for: CI/CD, pre-commit checks, regular development
-test = "pytest tests/ -m 'not full'"
+test = "pytest tests/ -m 'not root'"
 
 # TASK 2: Quick smoke test
 # Unit + integration + single visual case (~6 images)
 # Use for: Fast feedback during active development
 test-quick = "pytest tests/unit/ tests/integration/ -v && pytest tests/visual/ -m quick -v"
 
-# TASK 3: Full test matrix
-# Everything including edge cases (~244 images)
-# Use for: Pre-release validation, debugging comprehensive issues
-test-full = "pytest tests/ -m 'full or not full'"
+# TASK 3: ROOT-dependent tests only
+# Tests requiring native ROOT (plot_cov, rmap, etc.)
+# Use for: Validating ROOT-specific features
+test-root = "pytest tests/ -m root"
+
+# TASK 4: Full test suite
+# Everything including ROOT-dependent tests
+# Use for: Pre-release validation, comprehensive checks
+test-full = "pytest tests/ -m 'root or not root'"
 
 [environments]
 default = { features = ["test"], solve-group = "default" }

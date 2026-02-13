@@ -30,7 +30,6 @@ FAILED_DIR = TESTS_DIR / "failed"
 TIER_MARKERS = {
     "quick": [pytest.mark.quick, pytest.mark.standard],
     "standard": [pytest.mark.standard],
-    "full": [pytest.mark.full],
 }
 
 

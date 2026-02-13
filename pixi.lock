@@ -1276,7 +1276,7 @@ packages:
 - pypi: ./
   name: combine-postfits
   version: 0.1.0
-  sha256: d22153ebe851888904baa2dee13d5da3b88a7cd0ab60e5ae6268548549446f93
+  sha256: 1e19c08f9e11599a212939bb8899188353c1d3697286e64081acfbd3b2b8332e
   requires_dist:
   - typing-extensions
   - typeguard

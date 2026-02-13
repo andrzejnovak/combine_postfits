@@ -77,12 +77,12 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
-    "-m", "not full",
+    "-m", "not root",
 ]
 
 markers = [
     "quick: Smoke test (1 visual case)",
     "standard: Handpicked visual cases",
-    "full: All visual cases (244 images)",
+    "root: Tests requiring native ROOT dependency",
     "visual: Visual regression tests",
 ]

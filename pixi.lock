@@ -1279,23 +1279,27 @@ packages:
   timestamp: 1733218222191
 - pypi: ./
   name: combine-postfits
-  version: 0.1.0
-  sha256: ecc770e2346151a5266fb176fa2435b71b1ed0c62cb092d4f3fabfcbf1c08de1
+  version: 0.1.dev98+g12e9b2917
+  sha256: 6625252d35277b433c205a9bc2951e7f3a532a0f47b3e8cb5ccf7937b021eb3b
   requires_dist:
-  - typing-extensions
-  - typeguard
+  - hist
+  - mplhep>=1.0.0
+  - numpy
+  - pyyaml
   - rich
   - rich-argparse-plus
-  - numpy
-  - uproot
-  - mplhep>=1.0.0
-  - hist
   - scipy
-  - pyyaml
+  - typeguard
+  - typing-extensions
+  - uproot
+  - pytest ; extra == 'all'
+  - pytest-image-diff ; extra == 'all'
+  - pytest-xdist ; extra == 'all'
+  - root ; extra == 'all'
+  - root ; extra == 'root'
   - pytest ; extra == 'test'
   - pytest-image-diff ; extra == 'test'
   - pytest-xdist ; extra == 'testx'
-  - combine-postfits[test,testx] ; extra == 'all'
   requires_python: '>=3.9'
 - conda: https://conda.anaconda.org/conda-forge/noarch/comm-0.2.3-pyhe01879c_0.conda
   sha256: 576a44729314ad9e4e5ebe055fbf48beb8116b60e58f9070278985b2b634f212

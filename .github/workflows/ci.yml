@@ -54,11 +54,14 @@ jobs:
           path: tests/failed/
           retention-days: 3
 
-  standard:
-    name: Standard Tests
+  matrix:
+    name: Matrix Tests (${{ matrix.environment }})
     needs: quick
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [py310, py311, py312]
     steps:
       - uses: actions/checkout@v4
       
@@ -66,25 +69,10 @@ jobs:
         with:
           pixi-version: v0.62.2
           cache: true
+          environments: ${{ matrix.environment }}
           
-      - name: Run standard tests
-        run: pixi run test --junitxml=test-results-standard.xml
-        
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-standard
-          path: test-results-standard.xml
-          retention-days: 7
-
-      - name: Upload failures
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: failures-standard
-          path: tests/failed/
-          retention-days: 3
+      - name: Run matrix tests
+        run: pixi run -e ${{ matrix.environment }} test-matrix
 
   full:
     name: Full Tests

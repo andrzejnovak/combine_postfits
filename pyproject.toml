@@ -1,6 +1,6 @@
 # contents of pyproject.toml
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project.scripts]
@@ -17,7 +17,7 @@ Changelog = "https://package.readthedocs.io/en/latest/changelog.html"
 
 [project]
 name = "combine_postfits"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Plotter for combine postfits"
 readme = "README.md"
 license.file = "LICENSE"
@@ -113,3 +113,9 @@ known-first-party = ["combine_postfits"]
 [tool.ruff.format]
 quote-style = "double"
 
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/combine_postfits/_version.py"

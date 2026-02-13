@@ -2,3 +2,4 @@ __pycache__/
 tests/failed/
 tests/outs/
 
+src/combine_postfits/_version.py

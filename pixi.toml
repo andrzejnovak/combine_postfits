@@ -56,7 +56,7 @@ test-full = "pytest tests/ -m 'root or not root'"
 # TASK 5: CI Matrix Test
 # Subset of tests for version matrix checking
 # Unit tests + Multiprocessing check + ROOT check
-test-matrix = "pytest tests/unit/ && combine_postfits -i tests/fitDiags/fit_diag_A.root -o tests/matrix_out -p 2 --data --unblind && pytest tests/ -m root"
+test-matrix = "pytest tests/unit/ --junitxml=test-results-matrix-unit.xml && combine_postfits -i tests/fitDiags/fit_diag_A.root -o tests/matrix_out -p 2 --data --unblind && pytest tests/ -m root --junitxml=test-results-matrix-root.xml"
 
 [feature.py310.dependencies]
 python = "3.10.*"

@@ -74,6 +74,22 @@ jobs:
       - name: Run matrix tests
         run: pixi run -e ${{ matrix.environment }} test-matrix
 
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-matrix-${{ matrix.environment }}
+          path: test-results-matrix-*.xml
+          retention-days: 7
+
+      - name: Upload failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failures-matrix-${{ matrix.environment }}
+          path: tests/failed/
+          retention-days: 3
+
   full:
     name: Full Tests
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

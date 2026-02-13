@@ -124,3 +124,48 @@ class TestPlotCovVisual:
             shutil.copy2(str(output), str(FAILED_DIR / "cov_A_fit_s.png"))
             pytest.fail(f"Visual mismatch: {diff}")
 
+
+@pytest.mark.root
+class TestCovCLI:
+    """CLI-level tests for combine_postfits_cov binary."""
+
+    def test_cli_produces_output(self, tmp_path):
+        """combine_postfits_cov should produce a PNG file."""
+        import subprocess, sys
+        cli = str(Path(sys.executable).parent / "combine_postfits_cov")
+        result = subprocess.run(
+            [cli, "-i", str(FITDIAGS / "fit_diag_A.root"),
+             "-o", str(tmp_path / "cov_out"), "--data",
+             "--fit", "fit_s", "--dpi", "72"],
+            capture_output=True, text=True, timeout=60,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert (tmp_path / "cov_out").exists()
+
+    def test_cli_include_filter(self, tmp_path):
+        """combine_postfits_cov --include should filter nuisances."""
+        import subprocess, sys
+        cli = str(Path(sys.executable).parent / "combine_postfits_cov")
+        result = subprocess.run(
+            [cli, "-i", str(FITDIAGS / "fit_diag_A.root"),
+             "-o", str(tmp_path / "cov_out"), "--MC",
+             "--fit", "fit_s", "--dpi", "72",
+             "--include", "r,z"],
+            capture_output=True, text=True, timeout=60,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+
+    def test_cli_exclude_filter(self, tmp_path):
+        """combine_postfits_cov --exclude should exclude nuisances."""
+        import subprocess, sys
+        cli = str(Path(sys.executable).parent / "combine_postfits_cov")
+        result = subprocess.run(
+            [cli, "-i", str(FITDIAGS / "fit_diag_A.root"),
+             "-o", str(tmp_path / "cov_out"), "--MC",
+             "--fit", "fit_s", "--dpi", "72",
+             "--exclude", "*mcstat*,qcdparam*"],
+            capture_output=True, text=True, timeout=60,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+
+

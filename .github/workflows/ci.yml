@@ -86,8 +86,8 @@ jobs:
           path: tests/failed/
           retention-days: 3
 
-  root:
-    name: ROOT Tests
+  full:
+    name: Full Tests
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -99,20 +99,20 @@ jobs:
           cache: true
           
       - name: Run all tests including ROOT-dependent
-        run: pixi run test-full --junitxml=test-results-root.xml
+        run: pixi run test-full --junitxml=test-results-full.xml
         
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-root
-          path: test-results-root.xml
+          name: test-results-full
+          path: test-results-full.xml
           retention-days: 7
 
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: failures-root
+          name: failures-full
           path: tests/failed/
           retention-days: 3

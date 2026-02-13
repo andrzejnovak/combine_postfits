@@ -584,76 +584,78 @@ def main():
                 )
 
             def mod_plot(semaphore=None):
-                fig, (ax, rax) = plot_postfits.plot(
-                    fd,
-                    fittype,
-                    sigs=args.sigs.split(",") if args.sigs else None,
-                    bkgs=args.bkgs.split(",") if args.bkgs else None,
-                    onto=args.onto,
-                    project_signal=(
-                        [float(v) for v in args.project_signals.split(",")]
-                        if args.project_signals
-                        else None
-                    ),
-                    rmap=rmap,
-                    blind=blind,
-                    blind_data=blind_range,
-                    cats=channel,
-                    restoreNorm=True,
-                    clipx=args.clipx,
-                    fitDiag_root=rfd,
-                    style=style,
-                    cat_info=label,
-                    chi2=args.chi2,
-                    chi2_nocorr=args.chi2_nocorr,
-                    residuals=args.residuals,
-                )
-                if fig is None:
-                    return None
-                # Styling
-                if args.xlabel is not None:
-                    rax.set_xlabel(args.xlabel)
-                if args.ylabel is not None:
-                    ax.set_ylabel(args.ylabel)
-                hep.cms.label(
-                    args.cmslabel,
-                    data=not args.pseudo,
-                    ax=ax,
-                    lumi=args.lumi,
-                    lumi_format="{:0.0f}",
-                    com=args.com,
-                    pub=args.pub,
-                    year=args.year,
-                )
-                # ax.semilogy()
-                # ax.set_ylim(10, None)
-
-                # Sci notat
-                leading_dig_max, decimal_dig_max = 0, 0
-                for tick in ax.get_yticks():
-                    leading_dig_max = max(leading_dig_max, get_digits(tick)[0])
-                    decimal_dig_max = max(decimal_dig_max, get_digits(tick)[1])
-                if (leading_dig_max > 3) or (decimal_dig_max > 3):
-
-                    def g(x, pos):
-                        return rf"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
-
-                    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(g))
-
-                # Save
-                for fmt in format:
-                    logging.debug(
-                        f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'"
+                try:
+                    fig, (ax, rax) = plot_postfits.plot(
+                        fd,
+                        fittype,
+                        sigs=args.sigs.split(",") if args.sigs else None,
+                        bkgs=args.bkgs.split(",") if args.bkgs else None,
+                        onto=args.onto,
+                        project_signal=(
+                            [float(v) for v in args.project_signals.split(",")]
+                            if args.project_signals
+                            else None
+                        ),
+                        rmap=rmap,
+                        blind=blind,
+                        blind_data=blind_range,
+                        cats=channel,
+                        restoreNorm=True,
+                        clipx=args.clipx,
+                        fitDiag_root=rfd,
+                        style=style,
+                        cat_info=label,
+                        chi2=args.chi2,
+                        chi2_nocorr=args.chi2_nocorr,
+                        residuals=args.residuals,
                     )
-                    fig.savefig(
-                        f"{args.output}/{fittype}/{sname}_{fittype}.{fmt}",
-                        format=fmt,
-                        dpi=args.dpi,
-                        bbox_inches="tight",
-                        # transparent=True,
+                    if fig is None:
+                        return None
+                    # Styling
+                    if args.xlabel is not None:
+                        rax.set_xlabel(args.xlabel)
+                    if args.ylabel is not None:
+                        ax.set_ylabel(args.ylabel)
+                    hep.cms.label(
+                        args.cmslabel,
+                        data=not args.pseudo,
+                        ax=ax,
+                        lumi=args.lumi,
+                        lumi_format="{:0.0f}",
+                        com=args.com,
+                        pub=args.pub,
+                        year=args.year,
                     )
-                if semaphore is not None:
-                    semaphore.release()
+                    # ax.semilogy()
+                    # ax.set_ylim(10, None)
+
+                    # Sci notat
+                    leading_dig_max, decimal_dig_max = 0, 0
+                    for tick in ax.get_yticks():
+                        leading_dig_max = max(leading_dig_max, get_digits(tick)[0])
+                        decimal_dig_max = max(decimal_dig_max, get_digits(tick)[1])
+                    if (leading_dig_max > 3) or (decimal_dig_max > 3):
+
+                        def g(x, pos):
+                            return rf"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
+
+                        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(g))
+
+                    # Save
+                    for fmt in format:
+                        logging.debug(
+                            f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'"
+                        )
+                        fig.savefig(
+                            f"{args.output}/{fittype}/{sname}_{fittype}.{fmt}",
+                            format=fmt,
+                            dpi=args.dpi,
+                            bbox_inches="tight",
+                            # transparent=True,
+                        )
+                finally:
+                    if semaphore is not None:
+                        semaphore.release()
 
             if args.multiprocessing > 0:
                 semaphore.acquire()

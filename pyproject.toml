@@ -46,7 +46,7 @@ dependencies = [
   "rich-argparse-plus",
   "numpy",
   "uproot",
-  "mplhep>=0.3.45",
+  "mplhep>=1.0.0",
   "hist",
   "scipy",
   "pyyaml",
@@ -65,5 +65,24 @@ all = [
 ]
 
 
-[tool.pytest.ini_config]
-minversion = 6.0
+[tool.pytest.ini_options]
+minversion = "6.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Default: run standard tests (excludes full-only visuals)
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-m", "not full",
+]
+
+markers = [
+    "quick: Smoke test (1 visual case)",
+    "standard: Handpicked visual cases",
+    "full: All visual cases (244 images)",
+    "visual: Visual regression tests",
+]

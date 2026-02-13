@@ -1,0 +1,48 @@
+[workspace]
+name = "combine_postfits"
+version = "0.1.0"
+description = "Plotter for combine postfits"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+generate-baselines = "./tests/examples.sh all"
+
+[dependencies]
+python = ">=3.10,<3.13"
+pip = "*"
+root = ">=6.26"
+
+# Core dependencies
+numpy = "*"
+scipy = "*"
+pyyaml = "*"
+matplotlib = "*"
+
+# PyPI dependencies installed via pip
+[pypi-dependencies]
+combine_postfits = { path = ".", editable = true }
+
+[feature.test.dependencies]
+pytest = "*"
+pillow = "*"
+
+[feature.test.tasks]
+# TASK 1: Standard test (DEFAULT)
+# Unit + integration + core visual tests (~44 images)
+# Use for: CI/CD, pre-commit checks, regular development
+test = "pytest tests/ -m 'not full'"
+
+# TASK 2: Quick smoke test
+# Unit + integration + single visual case (~6 images)
+# Use for: Fast feedback during active development
+test-quick = "pytest tests/unit/ tests/integration/ -v && pytest tests/visual/ -m quick -v"
+
+# TASK 3: Full test matrix
+# Everything including edge cases (~244 images)
+# Use for: Pre-release validation, debugging comprehensive issues
+test-full = "pytest tests/ -m 'full or not full'"
+
+[environments]
+default = { features = ["test"], solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }

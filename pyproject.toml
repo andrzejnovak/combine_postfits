@@ -109,6 +109,7 @@ known-first-party = ["combine_postfits"]
 "**/make_plots.py" = ["E402"]
 "**/plot_cov.py" = ["E402"]
 "**/plot_postfits.py" = ["E402"]
+"**/_version.py" = ["I001"]
 
 [tool.ruff.format]
 quote-style = "double"

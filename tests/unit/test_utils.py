@@ -1,17 +1,18 @@
 # tests/unit/test_utils.py
 """Unit tests for combine_postfits.utils module."""
 
-import pytest
-import numpy as np
 import hist
+import numpy as np
+import pytest
+
 from combine_postfits.utils import (
-    format_categories,
-    merge_hists,
-    fill_colors,
-    extract_mergemap,
     adjust_lightness,
     clean_yaml,
     cmap10,
+    extract_mergemap,
+    fill_colors,
+    format_categories,
+    merge_hists,
 )
 
 
@@ -50,15 +51,15 @@ class TestMergeHists:
         h1 = hist.new.Reg(10, 0, 100).Weight()
         h1.view().value[:] = np.array([10, 20, 30, 40, 50, 40, 30, 20, 10, 5])
         h1.view().variance[:] = h1.view().value
-        
+
         h2 = hist.new.Reg(10, 0, 100).Weight()
         h2.view().value[:] = np.array([5, 10, 15, 20, 25, 20, 15, 10, 5, 2])
         h2.view().variance[:] = h2.view().value
-        
+
         h3 = hist.new.Reg(10, 0, 100).Weight()
         h3.view().value[:] = np.array([1, 2, 3, 4, 5, 4, 3, 2, 1, 0.5])
         h3.view().variance[:] = h3.view().value
-        
+
         return {"qcd": h1, "wjets": h2, "signal": h3}
 
     def test_merge_sums_histograms(self, sample_hists):
@@ -66,8 +67,7 @@ class TestMergeHists:
         result = merge_hists(sample_hists.copy(), merge_map)
         assert "ewk" in result
         np.testing.assert_array_almost_equal(
-            result["ewk"].values(),
-            sample_hists["qcd"].values() + sample_hists["wjets"].values()
+            result["ewk"].values(), sample_hists["qcd"].values() + sample_hists["wjets"].values()
         )
 
     def test_merge_preserves_originals(self, sample_hists):
@@ -90,10 +90,7 @@ class TestMergeHists:
     def test_merge_single_hist(self, sample_hists):
         merge_map = {"alias": ["qcd"]}
         result = merge_hists(sample_hists.copy(), merge_map)
-        np.testing.assert_array_almost_equal(
-            result["alias"].values(),
-            sample_hists["qcd"].values()
-        )
+        np.testing.assert_array_almost_equal(result["alias"].values(), sample_hists["qcd"].values())
 
     def test_merge_overwrites_existing_with_warning(self, sample_hists, caplog):
         merge_map = {"qcd": ["wjets", "signal"]}
@@ -101,23 +98,18 @@ class TestMergeHists:
         assert "will replace" in caplog.text
         # qcd should now be sum of wjets + signal
         np.testing.assert_array_almost_equal(
-            result["qcd"].values(),
-            sample_hists["wjets"].values() + sample_hists["signal"].values()
+            result["qcd"].values(), sample_hists["wjets"].values() + sample_hists["signal"].values()
         )
 
 
 class TestFillColors:
     def test_fills_missing_colors(self):
-        style = {
-            "sig": {"label": "Signal", "color": None, "hatch": None}
-        }
+        style = {"sig": {"label": "Signal", "color": None, "hatch": None}}
         result = fill_colors(style, cmap=["#ff0000", "#00ff00"])
         assert result["sig"]["color"] == "#ff0000"
 
     def test_preserves_existing_colors(self):
-        style = {
-            "sig": {"label": "Signal", "color": "#0000ff", "hatch": None}
-        }
+        style = {"sig": {"label": "Signal", "color": "#0000ff", "hatch": None}}
         result = fill_colors(style, cmap=["#ff0000"])
         assert result["sig"]["color"] == "#0000ff"
 
@@ -131,9 +123,7 @@ class TestFillColors:
         assert result["b"]["color"] == "#00ff00"
 
     def test_adds_data_and_signal_defaults(self):
-        style = {
-            "bkg": {"label": "Background", "color": "#123456", "hatch": None}
-        }
+        style = {"bkg": {"label": "Background", "color": "#123456", "hatch": None}}
         result = fill_colors(style, cmap=cmap10)
         assert "data" in result
         assert "total_signal" in result
@@ -151,9 +141,10 @@ class TestFillColors:
         assert result["a"]["color"] is not None
         assert result["b"]["color"] is not None
         assert result["c"]["color"] is not None
-        assert "duplicate colors" in caplog.text.lower() or len(set([
-            result["a"]["color"], result["b"]["color"], result["c"]["color"]
-        ])) <= 3
+        assert (
+            "duplicate colors" in caplog.text.lower()
+            or len(set([result["a"]["color"], result["b"]["color"], result["c"]["color"]])) <= 3
+        )
 
 
 class TestExtractMergemap:

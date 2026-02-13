@@ -1,6 +1,6 @@
 # contents of pyproject.toml
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project.scripts]
@@ -17,7 +17,7 @@ Changelog = "https://package.readthedocs.io/en/latest/changelog.html"
 
 [project]
 name = "combine_postfits"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Plotter for combine postfits"
 readme = "README.md"
 license.file = "LICENSE"
@@ -61,7 +61,10 @@ testx = [
   "pytest-xdist",
 ]
 all = [
-  "combine_postfits[test,testx]"
+  "combine_postfits[test,testx,root]"
+]
+root = [
+  "root",
 ]
 
 
@@ -77,12 +80,44 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
-    "-m", "not full",
+    "-m", "not root",
 ]
 
 markers = [
     "quick: Smoke test (1 visual case)",
     "standard: Handpicked visual cases",
-    "full: All visual cases (244 images)",
+    "root: Tests requiring native ROOT dependency",
     "visual: Visual regression tests",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+exclude = ["**/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "E741",   # ambiguous variable name (common in physics: l, r, etc.)
+    "F841",   # local variable assigned but never used (common in dev)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["combine_postfits"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/make_plots.py" = ["E402"]
+"**/plot_cov.py" = ["E402"]
+"**/plot_postfits.py" = ["E402"]
+"**/_version.py" = ["I001"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/combine_postfits/_version.py"

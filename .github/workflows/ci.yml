@@ -10,6 +10,20 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: prefix-dev/setup-pixi@v0.9.4
+        with:
+          pixi-version: v0.62.2
+          cache: true
+          
+      - name: Ruff check
+        run: pixi run lint
+
   quick:
     name: Quick Tests
     runs-on: ubuntu-latest
@@ -22,8 +36,16 @@ jobs:
           cache: true
           
       - name: Run quick tests
-        run: pixi run test-quick
+        run: pixi run test-quick --junitxml=test-results-quick.xml
         
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-quick
+          path: test-results-quick.xml
+          retention-days: 7
+
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4
@@ -46,8 +68,16 @@ jobs:
           cache: true
           
       - name: Run standard tests
-        run: pixi run test
+        run: pixi run test --junitxml=test-results-standard.xml
         
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-standard
+          path: test-results-standard.xml
+          retention-days: 7
+
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4
@@ -68,9 +98,17 @@ jobs:
           pixi-version: v0.62.2
           cache: true
           
-      - name: Run full tests
-        run: pixi run test-full
+      - name: Run all tests including ROOT-dependent
+        run: pixi run test-full --junitxml=test-results-full.xml
         
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-full
+          path: test-results-full.xml
+          retention-days: 7
+
       - name: Upload failures
         if: failure()
         uses: actions/upload-artifact@v4

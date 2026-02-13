@@ -1,11 +1,13 @@
 # tests/conftest.py
 """Shared pytest fixtures for combine_postfits tests."""
 
-import pytest
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import pytest
+
+matplotlib.use("Agg")
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 import uproot
 
 # Zero tolerance for publication-quality visual regression.
@@ -50,7 +52,7 @@ def fitdiag_D():
 def reset_matplotlib():
     """Reset matplotlib state between tests to prevent leakage"""
     yield
-    plt.close('all')
+    plt.close("all")
 
 
 @pytest.fixture

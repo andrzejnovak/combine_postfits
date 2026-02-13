@@ -5,9 +5,11 @@ These tests verify the plot() function returns correct values and behaves
 as expected without performing image comparisons.
 """
 
-import pytest
-import matplotlib.pyplot as plt
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pytest
+
 from combine_postfits.plot_postfits import plot
 
 TESTS_DIR = Path(__file__).parent.parent
@@ -17,7 +19,7 @@ TESTS_DIR = Path(__file__).parent.parent
 def cleanup_plots():
     """Reset matplotlib state between tests to prevent leakage"""
     yield
-    plt.close('all')
+    plt.close("all")
 
 
 @pytest.fixture
@@ -289,6 +291,43 @@ class TestPlotWithStyle:
             fit_type="prefit",
             cats=["ptbin0pass2016"],
             fitDiag_root=str(FITDIAGS / "fit_diag_A.root"),
+            style=minimal_style,
+        )
+        assert fig is not None
+
+
+class TestPlotBlindData:
+    """Test blind_data parameter for data masking."""
+
+    def test_blind_data_index_based(self, fitdiag_A, minimal_style):
+        """plot() should accept index-based blind_data slice."""
+        fig, _ = plot(
+            fitdiag_A,
+            fit_type="prefit",
+            cats=["ptbin0pass2016"],
+            blind_data="1:5",
+            style=minimal_style,
+        )
+        assert fig is not None
+
+    def test_blind_data_value_based(self, fitdiag_A, minimal_style):
+        """plot() should accept value-based blind_data slice (using j suffix)."""
+        fig, _ = plot(
+            fitdiag_A,
+            fit_type="prefit",
+            cats=["ptbin0pass2016"],
+            blind_data="40j:200j",
+            style=minimal_style,
+        )
+        assert fig is not None
+
+    def test_blind_data_full_range(self, fitdiag_A, minimal_style):
+        """plot() should handle blinding the entire range."""
+        fig, _ = plot(
+            fitdiag_A,
+            fit_type="prefit",
+            cats=["ptbin0pass2016"],
+            blind_data="0:100",
             style=minimal_style,
         )
         assert fig is not None

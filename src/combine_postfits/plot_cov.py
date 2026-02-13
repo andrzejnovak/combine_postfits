@@ -1,20 +1,20 @@
+import logging
+from typing import List, Optional, Union
+
+import hist
 import matplotlib
+
 # matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from typing import List, Union, Optional
-from typeguard import typechecked
-import logging
-import numpy as np
-from matplotlib.offsetbox import AnchoredText
 import mplhep as hep
-import hist
+import numpy as np
+from typeguard import typechecked
 
 np.seterr(divide="ignore", invalid="ignore")
 
-import hist
-from typing import List, Union
 import fnmatch
 import itertools
+
 
 @typechecked
 def plot_cov(
@@ -30,7 +30,7 @@ def plot_cov(
 
     rf = r.TFile.Open(fitDiagnostics_file)
     h2 = rf.Get(fit_type).correlationHist()
-    
+
     x_bins = h2.GetXaxis().GetNbins()
     y_bins = h2.GetYaxis().GetNbins()
     y_labels = [h2.GetYaxis().GetBinLabel(i) for i in range(1, y_bins + 1)]
@@ -60,8 +60,10 @@ def plot_cov(
         for pattern in exclude:
             exclude_keys.append([k for k in x_labels if fnmatch.fnmatch(k, pattern)])
         exclude_keys = list(dict.fromkeys(list(itertools.chain.from_iterable(exclude_keys))))
-        keys = [k for k in keys if k not in exclude_keys]      
-        logging.debug(f"  --exclude {len(exclude_keys)} / {len(x_labels)} keys: {exclude_keys if len(exclude_keys) < 10 else exclude_keys[:5] + ['...']}")
+        keys = [k for k in keys if k not in exclude_keys]
+        logging.debug(
+            f"  --exclude {len(exclude_keys)} / {len(x_labels)} keys: {exclude_keys if len(exclude_keys) < 10 else exclude_keys[:5] + ['...']}"
+        )
     assert len(keys) > 0, "No keys left after filtering. Check your include/exclude patterns."
     logging.info(f"  Plotting {len(keys)} / {len(x_labels)} keys: {keys if len(keys) < 10 else keys[:5] + ['...']}")
     if "r" in keys:  # put signal at the beginning
@@ -71,9 +73,10 @@ def plot_cov(
     # Plot it
     fig, ax = plt.subplots()
     hist_2d[keys, keys].plot2d(cmap=cmap, cmin=-1, cmax=1, ax=ax)
-    _base_fontsize = plt.rcParams['font.size']
-    from matplotlib.font_manager import font_scalings 
-    _base_fontsize = font_scalings.get('small') * _base_fontsize      
+    _base_fontsize = plt.rcParams["font.size"]
+    from matplotlib.font_manager import font_scalings
+
+    _base_fontsize = font_scalings.get("small") * _base_fontsize
     _fontsize = max(6, min(_base_fontsize, 24 - 0.25 * len(keys)))
     ax.set_xticklabels(ax.get_xticklabels(), rotation=tick_rotation, horizontalalignment="right", fontsize=_fontsize)
     ax.set_yticklabels(ax.get_yticklabels(), rotation=tick_rotation, horizontalalignment="right", fontsize=_fontsize)
@@ -85,12 +88,13 @@ def plot_cov(
 
 
 def main():
-    import matplotlib
     matplotlib.use("Agg")
     import argparse
+
     import click
     from rich.logging import RichHandler
     from rich_argparse_plus import RichHelpFormatterPlus
+
     RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
 
     parser = argparse.ArgumentParser(formatter_class=RichHelpFormatterPlus)
@@ -126,15 +130,15 @@ def main():
         "--include",
         type=str,
         default=None,
-        help="Comma-separated list of nuisances to be included in the plot. Can use wildcards. "\
-             "Non-matching nuisances will be excluded. If not set, all nuisances will be included.",
+        help="Comma-separated list of nuisances to be included in the plot. Can use wildcards. "
+        "Non-matching nuisances will be excluded. If not set, all nuisances will be included.",
     )
     parser.add_argument(
         "--exclude",
         type=str,
         default="*mcstat*",
-        help="Comma-separated list of nuisances to be excluded in the plot. Can use wildcards. "\
-             "By default `*mcstat*` is excluded. Pass empty string to include all nuisances.",
+        help="Comma-separated list of nuisances to be excluded in the plot. Can use wildcards. "
+        "By default `*mcstat*` is excluded. Pass empty string to include all nuisances.",
     )
     parser_data = parser.add_argument_group(
         "Data",
@@ -143,8 +147,7 @@ def main():
     pseudo = parser_data.add_mutually_exclusive_group(required=True)
     pseudo.add_argument("--data", action="store_false", dest="pseudo")
     pseudo.add_argument("--MC", action="store_true", dest="pseudo")
-    
-    
+
     parser_styling = parser.add_argument_group("Styling")
     parser_styling.add_argument(
         "--cmap",
@@ -184,17 +187,13 @@ def main():
         help="DPI for png format.",
     )
     parser_debug = parser.add_argument_group("DEBUG Options")
-    parser_debug.add_argument(
-        "--verbose", "-v", "-_v", action="store_true", help="Verbose logging"
-    )
-    parser_debug.add_argument(
-        "--debug", "-vv", "--vv", action="store_true", help="Debug logging"
-    )
-   
+    parser_debug.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
+    parser_debug.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
+
     import textwrap
 
     epilog = textwrap.dedent(
-    """
+        """
     Minimal example:
     ```
     #combine_postfits -i fitDiagnosticsTest.root --data
@@ -222,13 +221,15 @@ def main():
     )
 
     import os
+
     os.makedirs(args.output, exist_ok=True)
 
     hep.style.use("CMS")
 
     import warnings
+
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore",category=UserWarning, module="hist")
+        warnings.filterwarnings("ignore", category=UserWarning, module="hist")
 
         ax = plot_cov(
             args.input,
@@ -237,7 +238,7 @@ def main():
             exclude=args.exclude.split(",") if args.exclude else None,
             cmap=args.cmap,
         )
-    
+
     fig = ax.figure
     hep.cms.label(ax=ax, data=args.pseudo, year=args.year, label=args.cmslabel, pub=args.pub, com=args.com)
 

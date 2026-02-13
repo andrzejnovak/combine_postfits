@@ -1,36 +1,37 @@
-import os
-import numpy as np
-import uproot
-import logging
-import yaml
-import json
-import matplotlib
-from multiprocessing import Process, Semaphore
-import time
 import fnmatch
 import importlib.util
+import logging
+import os
+import time
+from multiprocessing import Process, Semaphore
+
+import matplotlib
+import numpy as np
+import uproot
+import yaml
 
 matplotlib.use("Agg")
-import mplhep as hep
 import argparse
+
+import mplhep as hep
 from rich_argparse_plus import RichHelpFormatterPlus
 
 RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
-from combine_postfits import plot_postfits, utils
-
 import click
 from rich.logging import RichHandler
 from rich.progress import (
-    Progress,
-    TextColumn,
     BarColumn,
     MofNCompleteColumn,
-    TimeRemainingColumn,
-    TimeElapsedColumn,
+    Progress,
     SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 from rich.prompt import Confirm
 from rich.traceback import install
+
+from combine_postfits import plot_postfits, utils
 
 install(show_locals=False)
 
@@ -48,9 +49,7 @@ def time_check(progress, procs, limit=5):
             f"Plotting taking longer than {limit} minutes. Likely and issue with file opening or too many figures. Try rerunning or running with `--p 0`."
         )
         remaining_procs = [p for p in procs if p.is_alive()]
-        logging.error(
-            f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}"
-        )
+        logging.error(f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}")
         for p in remaining_procs:
             p.terminate()
         import sys
@@ -285,12 +284,8 @@ def main():
         help="DPI for png format.",
     )
     parser_debug = parser.add_argument_group("DEBUG Options")
-    parser_debug.add_argument(
-        "--verbose", "-v", "-_v", action="store_true", help="Verbose logging"
-    )
-    parser_debug.add_argument(
-        "--debug", "-vv", "--vv", action="store_true", help="Debug logging"
-    )
+    parser_debug.add_argument("--verbose", "-v", "-_v", action="store_true", help="Verbose logging")
+    parser_debug.add_argument("--debug", "-vv", "--vv", action="store_true", help="Debug logging")
     parser_debug.add_argument(
         "--chi2",
         dest="chi2",
@@ -321,9 +316,7 @@ def main():
         choices=[True, False],
         help="Display data/MC residuals.",
     )
-    parser_debug.add_argument(
-        "--noroot", action="store_true", help="Skip ROOT dependency"
-    )
+    parser_debug.add_argument("--noroot", action="store_true", help="Skip ROOT dependency")
 
     import textwrap
 
@@ -344,14 +337,14 @@ def main():
 
     Extended example with category merging and signal mapping
     ```
-    combine_postfits -i fitDiagnosticsTest.root -o final_plots --style sty.yml 
-    --data --unblind --sigs hbb,zbb --bkgs top,ttbat,wjets,wcq,zjets_other --onto qcd 
+    combine_postfits -i fitDiagnosticsTest.root -o final_plots --style sty.yml
+    --data --unblind --sigs hbb,zbb --bkgs top,ttbat,wjets,wcq,zjets_other --onto qcd
     --rmap zbb:r_z,hbb:r  --project-signal 50,0
-    --cats 'pass16:ptbin*pass2016;pass:ptbin*pass*;fail:ptbin*fail*;muCRpass16:muonCRpass2016' 
+    --cats 'pass16:ptbin*pass2016;pass:ptbin*pass*;fail:ptbin*fail*;muCRpass16:muonCRpass2016'
     -p 20
     ```
 
-    For more examples see https://github.com/andrzejnovak/combine_postfits/blob/master/tests/test.sh 
+    For more examples see https://github.com/andrzejnovak/combine_postfits/blob/master/tests/test.sh
     """
     )
     parser_epi = parser.add_argument_group("Examples:", description=epilog)
@@ -394,7 +387,7 @@ def main():
         format = [args.format]
 
     # Make plots
-    
+
     fd = uproot.open(args.input)
     if ROOT_AVAILABLE and not args.noroot:
         rfd = r.TFile.Open(args.input)
@@ -404,9 +397,7 @@ def main():
         with open(args.style, "r") as stream:
             style = yaml.safe_load(stream)
     else:
-        style = utils.make_style_dict_yaml(
-            fd, cmap=args.cmap, sort=True, sort_peaky=True
-        )
+        style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
         logging.warning(
             "No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
             "The `plot` function will respect the order of samples in the style yaml unless overwritten. "
@@ -439,15 +430,13 @@ def main():
 
     # Parse rmap
     if args.rmap is not None:
-        kvs = args.rmap.split(",")      
+        kvs = args.rmap.split(",")
         rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
         logging.debug(f"Signal-to-POI mapping:\n{rmap}")
     else:
         rmap = None
     if args.sigs is not None:
-        _unset_sigs = [
-            sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap
-        ]
+        _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
         if len(_unset_sigs) > 0:
             logging.warning(
                 f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
@@ -461,14 +450,14 @@ def main():
     all_labels = []
     for fit_type in fit_types:
         # all channels
-        available_channels = [
-            c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0
-        ]
+        available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
         logging.debug(f"Available '{fit_type}' channels: {available_channels}")
         blinded_channels = []
         for pattern in blind_cat_patterns:
             blinded_channels.extend(fnmatch.filter(available_channels, pattern))
-            blinded_channels.extend(fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern))  # allow merged cats
+            blinded_channels.extend(
+                fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern)
+            )  # allow merged cats
         blind_cats = list(set(blinded_channels))
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
@@ -502,10 +491,7 @@ def main():
                 for cat in args.cats.split(";"):
                     mcat, cats = cat.split(":")
                     cats = sum(
-                        [
-                            fnmatch.filter(available_channels, _cat)
-                            for _cat in cats.split(",")
-                        ],
+                        [fnmatch.filter(available_channels, _cat) for _cat in cats.split(",")],
                         [],
                     )
                     # channels.append(cats.split(","))
@@ -517,10 +503,7 @@ def main():
             # list
             else:
                 channels = sum(
-                    [
-                        fnmatch.filter(available_channels, _cat)
-                        for _cat in args.cats.split(",")
-                    ],
+                    [fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")],
                     [],
                 )
                 blinds = [True if c in blind_cats else False for c in channels]
@@ -534,12 +517,10 @@ def main():
                     labels = [args.catlabels for c in channels]
             else:
                 labels = [c for c in savenames]
-            labels = [
-                "\n".join(lab.split("\\n")) for lab in labels
-            ]  # hacky but needed to pass \n from cmdline
-        assert (
-            len(channels) != 0
-        ), f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
+            labels = ["\n".join(lab.split("\\n")) for lab in labels]  # hacky but needed to pass \n from cmdline
+        assert len(channels) != 0, (
+            f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
+        )
         assert isinstance(channels[0], list)
         all_channels.extend(channels)
         all_blinds.extend(blinds)
@@ -551,7 +532,11 @@ def main():
     logging.debug(f"All Types: {all_types}")
     logging.debug(f"All Savenames: {all_savenames}")
     logging.debug(f"All Labels: {all_labels}")
-    all_blind_ranges = [blind_mapping_flattened[channel] if channel in blind_mapping_flattened else None for channel in all_savenames] if blind_mapping is not None else [None for _ in all_savenames]
+    all_blind_ranges = (
+        [blind_mapping_flattened[channel] if channel in blind_mapping_flattened else None for channel in all_savenames]
+        if blind_mapping is not None
+        else [None for _ in all_savenames]
+    )
     logging.debug(f"All Blind Ranges: {all_blind_ranges}")
     _procs = []
     with Progress(
@@ -562,11 +547,7 @@ def main():
         TimeRemainingColumn(),
         TimeElapsedColumn(),
     ) as progress:
-        prog_str_fmt = (
-            "[red]Plotting ({} workers): "
-            if args.multiprocessing > 0
-            else "[red]Plotting: "
-        )
+        prog_str_fmt = "[red]Plotting ({} workers): " if args.multiprocessing > 0 else "[red]Plotting: "
         prog_str = prog_str_fmt.format("N")
         prog_plotting = progress.add_task(prog_str, total=len(all_channels))
         semaphore = Semaphore(args.multiprocessing)
@@ -576,11 +557,7 @@ def main():
             # Wrap it in a function to enable parallel processing
             if label is None:
                 label = (
-                    1
-                    if len(channel) < 6
-                    else {
-                        s.split(":")[0]: s.split(":")[1] for s in args.cats.split(";")
-                    }[sname]
+                    1 if len(channel) < 6 else {s.split(":")[0]: s.split(":")[1] for s in args.cats.split(";")}[sname]
                 )
 
             def mod_plot(semaphore=None):
@@ -592,9 +569,7 @@ def main():
                         bkgs=args.bkgs.split(",") if args.bkgs else None,
                         onto=args.onto,
                         project_signal=(
-                            [float(v) for v in args.project_signals.split(",")]
-                            if args.project_signals
-                            else None
+                            [float(v) for v in args.project_signals.split(",")] if args.project_signals else None
                         ),
                         rmap=rmap,
                         blind=blind,
@@ -643,9 +618,7 @@ def main():
 
                     # Save
                     for fmt in format:
-                        logging.debug(
-                            f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'"
-                        )
+                        logging.debug(f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'")
                         fig.savefig(
                             f"{args.output}/{fittype}/{sname}_{fittype}.{fmt}",
                             format=fmt,

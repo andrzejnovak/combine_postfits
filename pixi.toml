@@ -53,6 +53,23 @@ test-root = "pytest tests/ -m root"
 # Use for: Pre-release validation, comprehensive checks
 test-full = "pytest tests/ -m 'root or not root'"
 
+# TASK 5: CI Matrix Test
+# Subset of tests for version matrix checking
+# Unit tests + Multiprocessing check + ROOT check
+test-matrix = "pytest tests/unit/ --junitxml=test-results-matrix-unit.xml && combine_postfits -i tests/fitDiags/fit_diag_A.root -o tests/matrix_out -p 2 --data --unblind && pytest tests/ -m root --junitxml=test-results-matrix-root.xml"
+
+[feature.py310.dependencies]
+python = "3.10.*"
+
+[feature.py311.dependencies]
+python = "3.11.*"
+
+[feature.py312.dependencies]
+python = "3.12.*"
+
 [environments]
 default = { features = ["test"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+py310 = ["py310", "test"]
+py311 = ["py311", "test"]
+py312 = ["py312", "test"]

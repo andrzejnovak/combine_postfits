@@ -58,6 +58,11 @@ test-full = "pytest tests/ -m 'root or not root'"
 # Unit tests + Multiprocessing check + ROOT check
 test-matrix = "pytest tests/unit/ --junitxml=test-results-matrix-unit.xml && combine_postfits -i tests/fitDiags/fit_diag_A.root -o tests/matrix_out -p 2 --data --unblind && pytest tests/ -m root --junitxml=test-results-matrix-root.xml"
 
+# TASK 6: CLI entry-point exposure tests
+# Verifies executables are installed and on PATH
+# Use for: Validating packaging after install
+test-cli = "pytest tests/test_cli_exposure.py -v"
+
 [feature.py310.dependencies]
 python = "3.10.*"
 

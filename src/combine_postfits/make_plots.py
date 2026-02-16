@@ -3,6 +3,7 @@ import importlib.util
 import logging
 import os
 import time
+from collections import defaultdict
 from multiprocessing import Process, Semaphore
 
 import matplotlib
@@ -448,6 +449,7 @@ def main():
     all_types = []
     all_savenames = []
     all_labels = []
+    confirmed_overlap = False  # Flag to track if user has already confirmed overlaps
     for fit_type in fit_types:
         # all channels
         available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
@@ -518,6 +520,53 @@ def main():
             else:
                 labels = [c for c in savenames]
             labels = ["\n".join(lab.split("\\n")) for lab in labels]  # hacky but needed to pass \n from cmdline
+
+        # Check for overlaps
+        channel_to_cats = defaultdict(list)
+        for i, cat_channels in enumerate(channels):
+            cat_name = savenames[i]
+            for channel in cat_channels:
+                channel_to_cats[channel].append(cat_name)
+
+        overlaps = {ch: cats for ch, cats in channel_to_cats.items() if len(cats) > 1}
+        if overlaps and not confirmed_overlap:
+            from rich.console import Console
+            from rich.table import Table
+
+            console = Console()
+            # Category Composition Table
+            summary_table = Table(
+                title="[bold red]Overlapping Categories Detected[/bold red]",
+                show_header=True,
+                header_style="bold magenta",
+                show_lines=True,
+            )
+            summary_table.add_column("Category", style="green")
+            summary_table.add_column("Total", justify="right")
+            summary_table.add_column("Composition (Red = Overlap)")
+
+            for i, cat_name in enumerate(savenames):
+                n_channels = len(channels[i])
+
+                # Format channel list with highlighting
+                formatted_channels = []
+                for ch in channels[i]:
+                    if ch in overlaps:
+                        formatted_channels.append(f"[bold red]{ch}[/bold red]")
+                    else:
+                        formatted_channels.append(ch)
+
+                composition_str = ", ".join(formatted_channels)
+                summary_table.add_row(cat_name, str(n_channels), composition_str)
+
+            console.print(summary_table)
+
+            if not Confirm.ask("[bold red]Do you want to continue with double-counted channels?[/bold red]"):
+                import sys
+
+                sys.exit("Aborted by user due to overlapping categories.")
+            confirmed_overlap = True
+
         assert len(channels) != 0, (
             f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
         )

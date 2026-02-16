@@ -647,7 +647,7 @@ def main():
                         lumi=args.lumi,
                         lumi_format="{:0.0f}",
                         com=args.com,
-                        pub=args.pub,
+                        supp=args.pub,
                         year=args.year,
                     )
                     # ax.semilogy()

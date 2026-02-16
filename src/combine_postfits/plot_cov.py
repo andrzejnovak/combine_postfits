@@ -240,7 +240,7 @@ def main():
         )
 
     fig = ax.figure
-    hep.cms.label(ax=ax, data=args.pseudo, year=args.year, label=args.cmslabel, pub=args.pub, com=args.com)
+    hep.cms.label(ax=ax, data=args.pseudo, year=args.year, label=args.cmslabel, supp=args.pub, com=args.com)
 
     full_path = args.output if args.output.endswith(".png") or args.output.endswith(".pdf") else None
     if full_path is None:

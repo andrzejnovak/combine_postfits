@@ -121,3 +121,61 @@ source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/combine_postfits/_version.py"
+
+# ── Pixi ──────────────────────────────────────────────────────────────────────
+
+[tool.pixi.workspace]
+name = "combine_postfits"
+version = "0.1.0"
+description = "Plotter for combine postfits"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.tasks]
+generate-baselines = { cmd = "./tests/examples.sh all", description = "Regenerate all visual test baselines" }
+lint = { cmd = "ruff check . && ruff format --check .", description = "Check linting and formatting" }
+lint-fix = { cmd = "ruff check --fix . && ruff format .", description = "Fix linting and formatting" }
+pre-commit-install = { cmd = "prek install", description = "Install pre-commit hooks" }
+
+[tool.pixi.dependencies]
+python = ">=3.10,<3.13"
+pip = "*"
+root = ">=6.26"
+ruff = "*"
+prek = "*"
+numpy = "*"
+scipy = "*"
+pyyaml = "*"
+matplotlib = "*"
+
+[tool.pixi.pypi-dependencies]
+combine_postfits = { path = ".", editable = true }
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+pytest-xdist = "*"
+pillow = "*"
+
+[tool.pixi.feature.test.tasks]
+test = { cmd = "pytest tests/ -m 'not root and not visual' -n auto && pytest tests/ -m 'visual and not root'", description = "Unit + integration + visual tests (default)" }
+test-quick = { cmd = "pytest tests/unit/ tests/integration/ -n auto -v && pytest tests/visual/ -m quick -v", description = "Quick smoke test (~1 visual case)" }
+test-root = { cmd = "pytest tests/ -m root", description = "ROOT-dependent tests only" }
+test-full = { cmd = "pytest tests/ -m 'not visual' -n auto && pytest tests/ -m visual", description = "Full suite including ROOT tests" }
+test-matrix = { cmd = "pytest tests/unit/ -n auto --junitxml=test-results-matrix-unit.xml && combine_postfits -i tests/fitDiags/fit_diag_A.root -o tests/matrix_out -p 2 --data --unblind && pytest tests/ -m root --junitxml=test-results-matrix-root.xml", description = "CI matrix: unit + multiprocessing + ROOT" }
+test-cli = { cmd = "pytest tests/test_cli_exposure.py -v", description = "Verify CLI entry points are installed" }
+
+[tool.pixi.feature.py310.dependencies]
+python = "3.10.*"
+
+[tool.pixi.feature.py311.dependencies]
+python = "3.11.*"
+
+[tool.pixi.feature.py312.dependencies]
+python = "3.12.*"
+
+[tool.pixi.environments]
+default = { features = ["test"], solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+py310 = ["py310", "test"]
+py311 = ["py311", "test"]
+py312 = ["py312", "test"]

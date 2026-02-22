@@ -12,6 +12,7 @@ from combine_postfits.utils import (
     extract_mergemap,
     fill_colors,
     format_categories,
+    make_style_dict_yaml,
     merge_hists,
 )
 
@@ -245,3 +246,143 @@ class TestCleanYaml:
         result = clean_yaml(style)
         assert "color" in result["sig"]
         assert "hatch" in result["sig"]
+
+
+# ---------------------------------------------------------------------------
+# Helpers for make_style_dict_yaml tests
+# ---------------------------------------------------------------------------
+
+
+class _MockDir:
+    """Mimics a uproot directory: iterates over child names with ';1' suffix."""
+
+    def __init__(self, children):
+        self._children = list(children)
+
+    def __iter__(self):
+        for name in self._children:
+            yield name + ";1"
+
+    def keys(self):
+        return list(self)
+
+
+class _MockHistObject:
+    """Object with a `to_hist()` method returning a hist.Hist with given values.
+
+    Bins are ``Regular(n, 0, n)`` and filled at bin centres (i+0.5) so that
+    each bin receives exactly the corresponding weight.
+    """
+
+    def __init__(self, values):
+        h = hist.Hist(hist.axis.Regular(len(values), 0, len(values)))
+        h.fill(np.arange(len(values)) + 0.5, weight=np.asarray(values, dtype=float))
+        self._h = h
+
+    def to_hist(self):
+        return self._h
+
+
+class _MockFitDiag:
+    """Minimal uproot-like dict for make_style_dict_yaml tests.
+
+    shapes is a nested dict: {fit_type: {channel: {sample: _MockHistObject|None}}}
+    """
+
+    def __init__(self, shapes):
+        self._shapes = shapes
+
+    def __contains__(self, key):
+        if not key.startswith("shapes_"):
+            return False
+        parts = key[len("shapes_"):].split("/", 2)
+        fit = parts[0]
+        if fit not in self._shapes:
+            return False
+        if len(parts) == 1:
+            return True
+        ch = parts[1]
+        if ch not in self._shapes[fit]:
+            return False
+        if len(parts) == 2:
+            return True
+        sample = parts[2]
+        return sample in self._shapes[fit][ch]
+
+    def __getitem__(self, key):
+        if not key.startswith("shapes_"):
+            raise KeyError(key)
+        parts = key[len("shapes_"):].split("/", 2)
+        fit = parts[0]
+        if len(parts) == 1:
+            return _MockDir(list(self._shapes[fit].keys()))
+        ch = parts[1]
+        if len(parts) == 2:
+            return _MockDir(list(self._shapes[fit][ch].keys()))
+        sample = parts[2]
+        return self._shapes[fit][ch][sample]
+
+
+class TestMakeStyleDictYaml:
+    _RESERVED = {"data", "total", "total_signal", "total_background"}
+
+    def _sample_keys(self, result):
+        """Return non-reserved sample keys in result dict order."""
+        return [k for k in result if k not in self._RESERVED]
+
+    @pytest.fixture
+    def simple_fitDiag(self):
+        """FitDiag with two samples: 'sig' (high yield) and 'bkg' (low yield)."""
+        shapes = {
+            "prefit": {
+                "ch1": {
+                    "sig": _MockHistObject([10.0, 20.0, 30.0]),
+                    "bkg": _MockHistObject([1.0, 2.0, 3.0]),
+                    "data": _MockHistObject([11.0, 22.0, 33.0]),
+                }
+            }
+        }
+        return _MockFitDiag(shapes)
+
+    def test_required_keys_present(self, simple_fitDiag):
+        result = make_style_dict_yaml(simple_fitDiag, sort=False)
+        for key in ("data", "total_signal", "total", "total_background"):
+            assert key in result
+
+    def test_sample_keys_present(self, simple_fitDiag):
+        result = make_style_dict_yaml(simple_fitDiag, sort=False)
+        assert "sig" in result
+        assert "bkg" in result
+
+    def test_sort_by_yield_descending(self, simple_fitDiag):
+        result = make_style_dict_yaml(simple_fitDiag, sort=True, sort_peaky=False)
+        sample_keys = self._sample_keys(result)
+        # sig has total yield 60, bkg has total yield 6 — sig must come first
+        assert sample_keys.index("sig") < sample_keys.index("bkg")
+
+    def test_yield_stored_in_style(self, simple_fitDiag):
+        result = make_style_dict_yaml(simple_fitDiag, sort=False)
+        assert result["sig"]["yield"] == pytest.approx(60.0, abs=0.01)
+        assert result["bkg"]["yield"] == pytest.approx(6.0, abs=0.01)
+
+    def test_zero_yield_sort_peaky_no_nan(self):
+        """sort_peaky=True with a zero-yield sample must not produce nan sort scores."""
+        shapes = {
+            "prefit": {
+                "ch1": {
+                    "sig": _MockHistObject([0.0, 0.0, 0.0]),
+                    "bkg": _MockHistObject([1.0, 2.0, 3.0]),
+                }
+            }
+        }
+        fitDiag = _MockFitDiag(shapes)
+        # Should not raise and should not produce nan in the result
+        result = make_style_dict_yaml(fitDiag, sort=True, sort_peaky=True)
+        assert "sig" in result
+        assert "bkg" in result
+
+    def test_sort_false_preserves_alphabetical(self, simple_fitDiag):
+        result = make_style_dict_yaml(simple_fitDiag, sort=False)
+        sample_keys = self._sample_keys(result)
+        # With sort=False samples come in alphabetical order (from get_samples_fitDiag)
+        assert sample_keys == sorted(sample_keys)

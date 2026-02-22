@@ -423,6 +423,9 @@ def main():
     if args.blind_data is not None:
         blind_mapping = {}
         for _mapping in args.blind_data.split(";"):
+            if ":" not in _mapping:
+                logging.error(f"Invalid blind-data mapping '{_mapping}', expected 'category:range'. Skipping.")
+                continue
             cat_pattern, slice_string = _mapping.split(":", 1)
             blind_mapping[cat_pattern] = slice_string
         logging.debug(f"Blind data mapping:\n{blind_mapping}")
@@ -430,12 +433,16 @@ def main():
         blind_mapping = None
 
     # Parse rmap
+    rmap = None
     if args.rmap is not None:
-        kvs = args.rmap.split(",")
-        rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
+        rmap = {}
+        for kv in args.rmap.split(","):
+            if ":" not in kv:
+                logging.error(f"Invalid rmap entry '{kv}', expected 'key:value'. Skipping.")
+                continue
+            parts = kv.split(":", 1)
+            rmap[parts[0]] = parts[1]
         logging.debug(f"Signal-to-POI mapping:\n{rmap}")
-    else:
-        rmap = None
     if args.sigs is not None:
         _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
         if len(_unset_sigs) > 0:
@@ -457,16 +464,19 @@ def main():
         blinded_channels = []
         for pattern in blind_cat_patterns:
             blinded_channels.extend(fnmatch.filter(available_channels, pattern))
-            blinded_channels.extend(
-                fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern)
-            )  # allow merged cats
+            if args.cats is not None and ":" in args.cats:
+                blinded_channels.extend(
+                    fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern)
+                )  # allow merged cats
         blind_cats = list(set(blinded_channels))
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
             blind_mapping_flattened = {}
-            if args.cats is not None:
+            if args.cats is not None and ":" in args.cats:
                 for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern):
+                    for channel in fnmatch.filter(
+                        [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern
+                    ):
                         blind_mapping_flattened[channel] = slice_string
             else:
                 # If no --cats specified, try matching against available_channels
@@ -491,7 +501,10 @@ def main():
                 blinds = []
                 savenames = []
                 for cat in args.cats.split(";"):
-                    mcat, cats = cat.split(":")
+                    if ":" not in cat:
+                        logging.error(f"Invalid cats mapping '{cat}', expected 'merged_cat:cat1,cat2'. Skipping.")
+                        continue
+                    mcat, cats = cat.split(":", 1)
                     cats = sum(
                         [fnmatch.filter(available_channels, _cat) for _cat in cats.split(",")],
                         [],
@@ -605,9 +618,13 @@ def main():
         ):
             # Wrap it in a function to enable parallel processing
             if label is None:
-                label = (
-                    1 if len(channel) < 6 else {s.split(":")[0]: s.split(":")[1] for s in args.cats.split(";")}[sname]
-                )
+                if len(channel) < 6:
+                    label = 1
+                else:
+                    _cat_map = {
+                        parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]
+                    }
+                    label = _cat_map.get(sname, 1)
 
             def mod_plot(semaphore=None):
                 try:

@@ -189,7 +189,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
 
         # Calculate yield
         if sample_hists:
-            yield_dict[k] = sum(sum(h.values()) for h in sample_hists)
+            yield_dict[k] = sum(np.sum(h.values()) for h in sample_hists)
         else:
             yield_dict[k] = 0
 
@@ -204,8 +204,10 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:
-            with np.errstate(divide="ignore", invalid="ignore"):
-                sort_score_dicts[k] = np.log(v) * (linearity_dict[k])
+            if v > 0:
+                sort_score_dicts[k] = np.log(v) * linearity_dict[k]
+            else:
+                sort_score_dicts[k] = -np.inf
         else:
             sort_score_dicts[k] = v
     if sort:

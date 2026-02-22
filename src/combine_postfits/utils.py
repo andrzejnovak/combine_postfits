@@ -163,40 +163,51 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             return 0
         poly1d_fn = np.poly1d(coef)
         fy = poly1d_fn(x)
-        residuals = abs(fy - _h) / np.sqrt(_h)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {}
+    linearity_dict = {}
+
+    # Calculate yield and linearity
+    # We collect histograms first to avoid reading/converting them multiple times
+    # which can be slow for large files.
+    for k in sample_keys:
+        # Collect relevant histograms for this sample
+        sample_hists = []
+        # "total" samples are skipped in original comprehensions via "total" not in k check
+        # If "total" is in k, hists remains empty, yield and linearity become 0.
+        if "total" not in k:
+            for fit in avail_fit_types:
+                for ch in avail_channels:
+                    key_path = f"shapes_{fit}/{ch}/{k}"
+                    if key_path in fitDiag:
+                        obj = fitDiag[key_path]
+                        if hasattr(obj, "to_hist"):
+                            sample_hists.append(obj.to_hist())
+
+        # Calculate yield
+        if sample_hists:
+            yield_dict[k] = sum(np.sum(h.values()) for h in sample_hists)
+        else:
+            yield_dict[k] = 0
+
+        # Calculate linearity
+        # Original logic included [0] to prevent mean on empty list
+        # This results in [val1, val2, 0] -> mean is sum/3
+        if sample_hists:
+            lin_vals = [linearity(h) for h in sample_hists]
+            linearity_dict[k] = np.mean(lin_vals + [0])
+        else:
+            linearity_dict[k] = 0  # mean([0]) is 0
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:
-            sort_score_dicts[k] = np.log(v) * (linearity_dict[k])
+            if v > 0:
+                sort_score_dicts[k] = np.log(v) * linearity_dict[k]
+            else:
+                sort_score_dicts[k] = -np.inf
         else:
             sort_score_dicts[k] = v
     if sort:

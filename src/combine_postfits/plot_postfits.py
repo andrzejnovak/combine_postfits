@@ -138,13 +138,18 @@ def plot(
             logging.warning(f"  Hist '{key}' is missing and will be ignored. Available keys are: {hist_keys}")
 
     # Soft-fail on missing hist
+    # Pre-calculate global max to avoid O(N) lookup in loop
+    if len(hist_dict) > 0:
+        _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()])
+    else:
+        _max_value_global = 1.0
+
     def hist_dict_fcn(name, raw=False, global_scale=True, th=0.003):
         """
         raw: return raw hist without any modifications
         global_scale: when true will clip small values based on global max, else based on hist max
                 set to False when plotting eg. signal in ratio
         """
-        _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()])
         if name not in hist_dict:
             logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
             _hobj = deepcopy(hist_dict[list(hist_dict.keys())[0]])

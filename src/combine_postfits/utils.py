@@ -1,5 +1,6 @@
 import argparse
 import logging
+from collections import defaultdict
 from pkgutil import iter_modules
 
 import hist
@@ -139,18 +140,6 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
     avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
-    def get_samples_fitDiag(fitDiag):
-        snames = []
-        for fit in avail_fit_types:
-            try:
-                for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
-            except KeyError:
-                print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
-
-    sample_keys = get_samples_fitDiag(fitDiag)
-
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
@@ -166,35 +155,46 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = defaultdict(float)
+    linearity_accum = defaultdict(list)
+
+    for fit in avail_fit_types:
+        fit_path = f"shapes_{fit}"
+        if fit_path not in fitDiag:
+            continue
+        fit_dir = fitDiag[fit_path]
+
+        for ch in avail_channels:
+            if ch not in fit_dir:
+                continue
+
+            ch_dir = fit_dir[ch]
+
+            for key in ch_dir.keys():
+                k = key.split(";")[0]
+                if "covar" in k:
+                    continue
+
+                # Ensure existence in dictionary
+                _ = yield_dict[k]
+
+                if "total" in k:
+                    continue
+
+                obj = ch_dir[key]
+
+                if not hasattr(obj, "to_hist"):
+                    continue
+
+                h = obj.to_hist()
+                yield_dict[k] += sum(h.values())
+                linearity_accum[k].append(linearity(h))
+
+    sample_keys = sorted(list(yield_dict.keys()))
+    linearity_dict = {k: np.mean(linearity_accum[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
-    for k, v in yield_dict.items():
+    for k in sample_keys:
+        v = yield_dict[k]
         if sort_peaky:
             sort_score_dicts[k] = np.log(v) * (linearity_dict[k])
         else:

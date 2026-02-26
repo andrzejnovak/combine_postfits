@@ -154,7 +154,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                     # Create mapping of sample_name -> (dir_obj, key) for this directory
                     # This leverages Uproot's internal directory caching and avoids repeated path parsing
                     for key in dir_obj.keys(recursive=False):
-                        sample_name = key.split(';')[0]
+                        sample_name = key.split(";")[0]
                         if "total" not in sample_name and "covar" not in sample_name:
                             sample_keys_set.add(sample_name)
                             if sample_name not in valid_paths:

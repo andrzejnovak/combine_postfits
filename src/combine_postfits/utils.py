@@ -139,17 +139,31 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
     avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
-    def get_samples_fitDiag(fitDiag):
-        snames = []
-        for fit in avail_fit_types:
-            try:
-                for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
-            except KeyError:
-                print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
+    # Pre-cache valid paths to avoid repeated string concatenation and existence checks
+    valid_paths = {}
+    sample_keys_set = set()
 
-    sample_keys = get_samples_fitDiag(fitDiag)
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            try:
+                # Get the directory object first, which is much faster than checking full paths
+                dir_path = f"shapes_{fit}/{ch}"
+                if dir_path in fitDiag:
+                    # Get all keys in this directory
+                    dir_obj = fitDiag[dir_path]
+                    # Create mapping of sample_name -> (dir_obj, key) for this directory
+                    # This leverages Uproot's internal directory caching and avoids repeated path parsing
+                    for key in dir_obj.keys(recursive=False):
+                        sample_name = key.split(";")[0]
+                        if "total" not in sample_name and "covar" not in sample_name:
+                            sample_keys_set.add(sample_name)
+                            if sample_name not in valid_paths:
+                                valid_paths[sample_name] = []
+                            valid_paths[sample_name].append((dir_obj, key))
+            except Exception:
+                continue
+
+    sample_keys = sorted(list(sample_keys_set))
 
     # Sorting - yield/peakiness
     def linearity(h):
@@ -166,33 +180,27 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {}
+    linearity_dict = {}
+
+    for k in sample_keys:
+        hists = []
+        # Use the pre-cached paths if available
+        if k in valid_paths:
+            for dir_obj, key in valid_paths[k]:
+                try:
+                    obj = dir_obj[key]
+                    if hasattr(obj, "to_hist"):
+                        hists.append(obj.to_hist())
+                except Exception:
+                    continue
+
+        if len(hists) == 0:
+            yield_dict[k] = 0
+            linearity_dict[k] = 0
+        else:
+            yield_dict[k] = sum([sum(h.values()) for h in hists])
+            linearity_dict[k] = np.mean([linearity(h) for h in hists])
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

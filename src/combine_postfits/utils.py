@@ -99,6 +99,9 @@ def fill_colors(style, cmap=None, no_duplicates=True):
     if len(cmap_clean) == 0:
         logging.error("len(cmap) after cleaning is 0. Either pass longer 'cmap' or set `no_duplicates=False`.")
         cmap_clean = cmap
+        if len(cmap_clean) == 0: # If it's still 0, we can't do anything
+            logging.error("cmap provided is empty. Using default colors.")
+            cmap_clean = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     cycler_iter = cycler("color", cmap_clean)()
     counter = 0
     taken = []
@@ -166,33 +169,49 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0 for k in sample_keys}
+    linearity_dict = {k: [] for k in sample_keys}
+
+    for fit in avail_fit_types:
+        fit_path = f"shapes_{fit}"
+        if fit_path not in fitDiag:
+            continue
+        # Get channel directories
+        fit_dir = fitDiag[fit_path]
+        for ch in avail_channels:
+            if ch not in fit_dir:
+                continue
+            ch_dir = fit_dir[ch]
+            # Iterate over keys in the directory, which is much faster than repeated lookups
+            # We need to handle cycle numbers correctly to avoid double counting
+            # e.g. hist;1 and hist;2. We only want the highest cycle.
+            keys_with_cycles = {}
+            for key in ch_dir.keys():
+                name, _, cycle = key.partition(";")
+                if name not in sample_keys or "total" in name:
+                    continue
+                cycle = int(cycle) if cycle.isdigit() else 1
+                if name not in keys_with_cycles or cycle > keys_with_cycles[name]:
+                    keys_with_cycles[name] = cycle
+
+            for k, cycle in keys_with_cycles.items():
+                # Reconstruct key to access object
+                full_key = f"{k};{cycle}"
+                if full_key not in ch_dir:  # Should be there, but safe check
+                    continue
+                obj = ch_dir[full_key]
+
+                if not hasattr(obj, "to_hist"):
+                    continue
+
+                h = obj.to_hist()
+                yield_dict[k] += sum(h.values())
+                linearity_dict[k].append(linearity(h))
+
+    # Average linearity
+    for k in linearity_dict:
+        # Match original behavior: pad with 0 to prevent mean on empty list
+        linearity_dict[k] = np.mean(linearity_dict[k] + [0])
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

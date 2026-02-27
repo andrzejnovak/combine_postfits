@@ -99,7 +99,7 @@ def fill_colors(style, cmap=None, no_duplicates=True):
     if len(cmap_clean) == 0:
         logging.error("len(cmap) after cleaning is 0. Either pass longer 'cmap' or set `no_duplicates=False`.")
         cmap_clean = cmap
-        if len(cmap_clean) == 0: # If it's still 0, we can't do anything
+        if len(cmap_clean) == 0:  # If it's still 0, we can't do anything
             logging.error("cmap provided is empty. Using default colors.")
             cmap_clean = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     cycler_iter = cycler("color", cmap_clean)()

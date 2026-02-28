@@ -166,31 +166,31 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0.0 for k in sample_keys}
+    linearity_lists = {k: [] for k in sample_keys}
+
+    for fit in avail_fit_types:
+        fit_path = f"shapes_{fit}"
+        if fit_path not in fitDiag:
+            continue
+        fit_dir = fitDiag[fit_path]
+        for ch in avail_channels:
+            if ch not in fit_dir:
+                continue
+            ch_dir = fit_dir[ch]
+            # Use keys from the directory directly to avoid multiple `in` checks
+            # Uproot keys have cycles like 'name;1'
+            ch_keys = [k.split(";")[0] for k in ch_dir.keys()]
+            for k in sample_keys:
+                if k in ch_keys and "total" not in k:
+                    obj = ch_dir[k]
+                    if hasattr(obj, "to_hist"):
+                        h = obj.to_hist()
+                        yield_dict[k] += sum(h.values())
+                        linearity_lists[k].append(linearity(h))
+
     linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
+        k: np.mean(linearity_lists[k] + [0])
         for k in sample_keys
     }
     sort_score_dicts = {}

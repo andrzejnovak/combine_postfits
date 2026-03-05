@@ -166,33 +166,40 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_data = {k: 0.0 for k in sample_keys}
+    linearity_data = {k: [] for k in sample_keys}
+
+    for fit in avail_fit_types:
+        try:
+            shapes_fit_dir = fitDiag[f"shapes_{fit}"]
+        except uproot.KeyInFileError:
+            continue
+
+        for ch in avail_channels:
+            if ch not in shapes_fit_dir:
+                continue
+
+            ch_dir = shapes_fit_dir[ch]
+
+            highest_cycle_keys = {}
+            for k in ch_dir.keys():
+                name, cycle = k.split(";")
+                cycle = int(cycle)
+                if name not in highest_cycle_keys or cycle > highest_cycle_keys[name][1]:
+                    highest_cycle_keys[name] = (k, cycle)
+
+            for k, (key_cycle, _) in highest_cycle_keys.items():
+                if k not in yield_data or "total" in k:  # Sum only TH1s, data is black anyway
+                    continue
+
+                obj = ch_dir[key_cycle]
+                if hasattr(obj, "to_hist"):
+                    h = obj.to_hist()
+                    yield_data[k] += sum(h.values())
+                    linearity_data[k].append(linearity(h))
+
+    yield_dict = yield_data
+    linearity_dict = {k: np.mean(v + [0]) for k, v in linearity_data.items()}  # pad 0 to prevent mean on empty list
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

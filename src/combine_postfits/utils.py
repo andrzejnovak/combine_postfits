@@ -166,33 +166,42 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0.0 for k in sample_keys}
+    linearity_lists = {k: [] for k in sample_keys}
+
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            dir_path = f"shapes_{fit}/{ch}"
+            if dir_path in fitDiag:
+                dir_obj = fitDiag[dir_path]
+
+                # Uproot keys may contain cycle numbers (e.g. 'name;1')
+                # We want to process only the highest cycle for each name
+                unique_keys = {}
+                for key_with_cycle in dir_obj.keys():
+                    if ";" in key_with_cycle:
+                        name, cycle = key_with_cycle.split(";")
+                        cycle = int(cycle)
+                    else:
+                        name = key_with_cycle
+                        cycle = 1
+
+                    if name not in unique_keys or cycle > unique_keys[name][1]:
+                        unique_keys[name] = (key_with_cycle, cycle)
+
+                for name, (key_with_cycle, _) in unique_keys.items():
+                    if name not in sample_keys or "total" in name:
+                        continue
+
+                    obj = dir_obj[key_with_cycle]
+                    if not hasattr(obj, "to_hist"):
+                        continue
+
+                    h = obj.to_hist()
+                    yield_dict[name] += sum(h.values())
+                    linearity_lists[name].append(linearity(h))
+
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

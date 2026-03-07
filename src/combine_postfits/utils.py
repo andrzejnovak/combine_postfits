@@ -163,7 +163,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             return 0
         poly1d_fn = np.poly1d(coef)
         fy = poly1d_fn(x)
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
@@ -196,15 +196,12 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                             yield_dict[k] += np.sum(hist_obj.values())
                             linearity_lists[k].append(linearity(hist_obj))
 
-    linearity_dict = {
-        k: np.mean(linearity_lists[k] + [0])
-        for k in sample_keys
-    }
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
 
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:
-            with np.errstate(divide='ignore', invalid='ignore'):
+            with np.errstate(divide="ignore", invalid="ignore"):
                 score = np.log(v) * linearity_dict[k]
                 sort_score_dicts[k] = score if np.isfinite(score) else 0.0
         else:

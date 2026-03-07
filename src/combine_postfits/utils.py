@@ -163,40 +163,47 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             return 0
         poly1d_fn = np.poly1d(coef)
         fy = poly1d_fn(x)
-        residuals = abs(fy - _h) / np.sqrt(_h)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0.0 for k in sample_keys}
+    linearity_lists = {k: [] for k in sample_keys}
+
+    # ⚡ Bolt: Single-pass over root directory keys and single .to_hist()
+    # conversion for both yield and linearity calculations. Avoids redundant
+    # string paths and expensive root class conversions.
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            shapes_dir_path = f"shapes_{fit}/{ch}"
+            if shapes_dir_path in fitDiag:
+                dir_obj = fitDiag[shapes_dir_path]
+                # Combine typically keeps highest cycle. To avoid double
+                # counting or missing items, map base name to highest cycle.
+                base_names = {}
+                for key in dir_obj.keys():
+                    base = key.split(";")[0]
+                    cycle = int(key.split(";")[1]) if ";" in key else 1
+                    if base not in base_names or cycle > base_names[base][0]:
+                        base_names[base] = (cycle, key)
+
+                for k in sample_keys:
+                    if "total" not in k and k in base_names:
+                        obj_key = base_names[k][1]
+                        obj = dir_obj[obj_key]
+                        if hasattr(obj, "to_hist"):
+                            hist_obj = obj.to_hist()
+                            yield_dict[k] += np.sum(hist_obj.values())
+                            linearity_lists[k].append(linearity(hist_obj))
+
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
+
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:
-            sort_score_dicts[k] = np.log(v) * (linearity_dict[k])
+            with np.errstate(divide="ignore", invalid="ignore"):
+                score = np.log(v) * linearity_dict[k]
+                sort_score_dicts[k] = score if np.isfinite(score) else 0.0
         else:
             sort_score_dicts[k] = v
     if sort:

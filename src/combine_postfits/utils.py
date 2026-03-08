@@ -166,33 +166,28 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_raw_dict = {k: 0.0 for k in sample_keys}
+    linearity_lists = {k: [] for k in sample_keys}
+
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            dir_path = f"shapes_{fit}/{ch}"
+            if dir_path not in fitDiag:
+                continue
+
+            dir_obj = fitDiag[dir_path]
+            keys_in_dir = {k.split(";")[0] for k in dir_obj.keys()}
+
+            for k in sample_keys:
+                if "total" not in k and k in keys_in_dir:
+                    obj = dir_obj[k]
+                    if hasattr(obj, "to_hist"):
+                        h = obj.to_hist()
+                        yield_raw_dict[k] += np.sum(h.values())
+                        linearity_lists[k].append(linearity(h))
+
+    yield_dict = yield_raw_dict
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

@@ -178,7 +178,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                 # Use standard parsing to match what we do for keys
                 available_objects = {}
                 for key_cycle in dir_keys:
-                    name, cycle = key_cycle.split(';')
+                    name, cycle = key_cycle.split(";")
                     cycle = int(cycle)
                     # keep the highest cycle just in case
                     if name not in available_objects or cycle > available_objects[name][1]:
@@ -195,10 +195,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                             yield_dict[k] += sum(h.values())
                             linearity_lists[k].append(linearity(h))
 
-    linearity_dict = {
-        k: np.mean(linearity_lists[k] + [0])
-        for k in sample_keys
-    }
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

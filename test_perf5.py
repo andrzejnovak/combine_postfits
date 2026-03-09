@@ -1,0 +1,18 @@
+import cProfile
+import io
+import pstats
+
+import uproot
+
+from src.combine_postfits.utils import make_style_dict_yaml
+
+f = uproot.open("tests/fitDiags/fit_diag_Abig.root")
+pr = cProfile.Profile()
+pr.enable()
+make_style_dict_yaml(f)
+pr.disable()
+s = io.StringIO()
+sortby = 'cumulative'
+ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+ps.print_stats(30)
+print(s.getvalue())

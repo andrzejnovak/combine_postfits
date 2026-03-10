@@ -166,33 +166,39 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0.0 for k in sample_keys}
+    linearity_lists = {k: [0] for k in sample_keys}  # pad 0 to prevent mean on empty list
+
+    for fit in avail_fit_types:
+        try:
+            fit_dir = fitDiag[f"shapes_{fit}"]
+        except KeyError:
+            continue
+
+        for ch_key in fit_dir.keys():
+            # exclude nested subdirectories by ensuring no slash
+            if ch_key.count("/") > 0:
+                continue
+
+            ch = ch_key.split(";")[0]
+            if ch not in avail_channels:
+                continue
+
+            ch_dir = fit_dir[ch_key]
+
+            for k_raw in ch_dir.keys():
+                k = k_raw.split(";")[0]
+
+                if k not in sample_keys or "total" in k:
+                    continue
+
+                obj = ch_dir[k_raw]
+                if hasattr(obj, "to_hist"):
+                    h = obj.to_hist()
+                    yield_dict[k] += sum(h.values())
+                    linearity_lists[k].append(linearity(h))
+
+    linearity_dict = {k: np.mean(linearity_lists[k]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

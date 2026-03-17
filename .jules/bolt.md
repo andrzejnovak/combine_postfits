@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2026-03-17 - O(N^2) path lookups to Uproot directory items
+**Learning:** `fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist()` inside a list comprehension causes Uproot to redundantly parse and look up the path hierarchy for every key. In large files with many keys and bins (e.g. `fit_diag_Abig.root`), parsing the directory once (`dir_obj = fitDiag[f"shapes_{fit}/{ch}"]`) and iterating over its items directly reduces execution time significantly (from ~27s to ~4s).
+**Action:** Avoid full path lookups inside tight loops in Uproot. First, retrieve the directory object, then access keys or items from it directly. Be careful to strip ROOT cycle numbers (e.g., `;1`) properly and handle duplicate keys by picking the highest cycle. Also cache the histogram via `h = obj.to_hist()` when computing multiple metrics (like `sum` and `linearity`).

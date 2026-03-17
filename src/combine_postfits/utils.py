@@ -166,33 +166,35 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0.0 for k in sample_keys}
+    linearity_dict = {k: [0.0] for k in sample_keys}  # pad 0 to prevent mean on empty list
+
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            dir_path = f"shapes_{fit}/{ch}"
+            if dir_path in fitDiag:
+                dir_obj = fitDiag[dir_path]
+
+                # Get all unique sample keys in this directory, excluding cycle numbers
+                # and checking they don't have 'total' in their names
+                dir_keys = {}
+                for obj_k in dir_obj.keys():
+                    base_k = obj_k.split(";")[0]
+                    if "total" not in base_k and base_k in sample_keys:
+                        # Prioritize higher cycle numbers
+                        cycle = int(obj_k.split(";")[1]) if ";" in obj_k else 1
+                        if base_k not in dir_keys or cycle > dir_keys[base_k][1]:
+                            dir_keys[base_k] = (obj_k, cycle)
+
+                for k, (obj_k, _) in dir_keys.items():
+                    obj = dir_obj[obj_k]
+                    if hasattr(obj, "to_hist"):
+                        h = obj.to_hist()
+                        yield_dict[k] += sum(h.values())
+                        linearity_dict[k].append(linearity(h))
+
+    for k in sample_keys:
+        linearity_dict[k] = np.mean(linearity_dict[k])
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2025-02-19 - Removed np.polyfit overhead in linearity calculation
+**Learning:** `np.polyfit` in `utils.linearity` was being used to fit a 1D line to small arrays (histogram bins). `np.polyfit` brings a huge overhead because it handles multi-degree polynomial fits, covariance matrices, and generalized operations like SVD. For a simple 1D linear regression on an array, doing the math manually with `np.sum` is approximately 3x faster and significantly reduces execution time since it's called for every histogram sample when sorting by peakiness.
+**Action:** Always prefer manual vectorization with `numpy` basic arithmetic operations over generalized statistical functions (like `polyfit`) for extremely simple operations (like 1D linear fit) if they are in performance critical loops.

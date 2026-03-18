@@ -154,16 +154,29 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
-        x = np.arange(len(_h))
-        if len(_h) <= 1:
+        n = len(_h)
+        if n <= 1:
             return 0
-        try:
-            coef = np.polyfit(x, _h, 1)
-        except:  # noqa
+
+        # Manual 1D linear regression (much faster than np.polyfit for small arrays)
+        x = np.arange(n)
+        x_mean = (n - 1) / 2.0
+        y_mean = np.mean(_h)
+
+        x_dev = x - x_mean
+        y_dev = _h - y_mean
+
+        denom = np.sum(x_dev**2)
+        if denom == 0:
             return 0
-        poly1d_fn = np.poly1d(coef)
-        fy = poly1d_fn(x)
-        residuals = abs(fy - _h) / np.sqrt(_h)
+
+        m = np.sum(x_dev * y_dev) / denom
+        b = y_mean - m * x_mean
+
+        fy = m * x + b
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
     yield_dict = {

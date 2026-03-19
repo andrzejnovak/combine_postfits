@@ -1,3 +1,6 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+## 2024-06-25 - Optimize metric computation with single-pass Uproot extraction
+**Learning:** In `make_style_dict_yaml`, computing metrics like yield and linearity using key-driven, top-down path lookups is extremely slow for large ROOT files. Converting Uproot objects to histograms via `to_hist()` is computationally expensive; batch processing or caching these conversions significantly improves performance when calculating multiple metrics per sample.
+**Action:** The optimal pattern is directory-driven: iterate through available Uproot directories, parse valid sample keys, extract objects, call `.to_hist()` exactly once, and compute all metrics simultaneously in a single pass.

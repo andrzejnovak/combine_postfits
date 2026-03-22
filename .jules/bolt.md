@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2025-02-19 - O(1) sample processing and np.polyfit overhead
+**Learning:** Using list comprehensions to look up individual uproot paths (e.g. `fd[f"shapes_{fit}/{ch}/{k}"]`) from a list of keys causes an immense number of duplicate network/file access round-trips when reading ROOT directories. Furthermore, running `np.polyfit` over very small arrays like single histograms incurs significant overhead from loading numpy's generalized SVD solver.
+**Action:** Use a directory-driven iteration. Fetch the directory (`fd[f"shapes_{fit}/{ch}"]`) only once and iterate over the items it contains. Calculate metrics (yield, linearity) in parallel in one pass. Replace `np.polyfit(x, y, 1)` with direct mathematical calculations (`m = (n * sum_xy - sum_x * sum_y) / denominator`) to bypass SVD overhead entirely on simple 1D linear regression.

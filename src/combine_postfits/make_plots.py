@@ -703,7 +703,9 @@ def main():
                 p.start()
                 time.sleep(0.1)
 
-                n_running = sum(p.is_alive() for p in _procs)  # Optimized: generator expression instead of list comprehension
+                n_running = sum(
+                    p.is_alive() for p in _procs
+                )  # Optimized: generator expression instead of list comprehension
                 progress.update(
                     prog_plotting,
                     completed=len(_procs) - n_running,

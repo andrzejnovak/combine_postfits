@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2024-05-15 - [List Flattening and Generator Expressions Performance Optimization]
+**Learning:** Using `sum([list_comprehension], [])` to flatten nested lists results in O(N^2) time complexity because it repeatedly reallocates memory to create new lists for every item being added. This pattern is common when flattening Uproot channel keys. Also, creating lists inside aggregate functions like `sum()` or `any()` (e.g., `sum([p.is_alive() for p in _procs])`) creates unnecessary intermediate lists.
+**Action:** Replace `sum([list_comprehension], [])` with flat list/set comprehensions like `[x for list in lists for x in list]` or `{x for list in lists for x in list}` for O(N) performance. Prefer generator expressions inside aggregate functions like `any(p.is_alive() for p in _procs)` to leverage short-circuiting and reduce redundant memory allocation.

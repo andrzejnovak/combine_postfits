@@ -174,7 +174,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
 
         fy = m * x + b
 
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             residuals = np.abs(fy - _h) / np.sqrt(_h)
 
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))

@@ -505,10 +505,7 @@ def main():
                         logging.error(f"Invalid cats mapping '{cat}', expected 'merged_cat:cat1,cat2'. Skipping.")
                         continue
                     mcat, cats = cat.split(":", 1)
-                    cats = sum(
-                        [fnmatch.filter(available_channels, _cat) for _cat in cats.split(",")],
-                        [],
-                    )
+                    cats = [c for _cat in cats.split(",") for c in fnmatch.filter(available_channels, _cat)]
                     # channels.append(cats.split(","))
                     channels.append(cats)
                     blinds.append(True if mcat in blind_cats else False)
@@ -517,10 +514,7 @@ def main():
                     continue
             # list
             else:
-                channels = sum(
-                    [fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")],
-                    [],
-                )
+                channels = [c for _cat in args.cats.split(",") for c in fnmatch.filter(available_channels, _cat)]
                 blinds = [True if c in blind_cats else False for c in channels]
                 savenames = [c for c in channels]
                 channels = [[c] for c in channels]

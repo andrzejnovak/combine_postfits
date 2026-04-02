@@ -114,7 +114,8 @@ def plot(
         return None, (None, None)
     orig_hist_keys = [
         k.split(";")[0]
-        for k in list(set(sum([c.keys() for c in channels], [])))
+        # Bolt: Avoid O(N^2) list flattening via sum(..., []), prefer fast set comprehension
+        for k in {k for c in channels for k in c.keys()}
         if "data" not in k and "covar" not in k
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
@@ -192,7 +193,8 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    # Bolt: Short-circuiting evaluation avoids memory and CPU overhead of fetching all keys across all channels
+    if not any("total_signal" in c for c in channels):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [

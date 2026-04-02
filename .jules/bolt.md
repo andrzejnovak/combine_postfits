@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2025-02-19 - Removed redundant Uproot path lookups and multiple to_hist calls
+**Learning:** In `make_style_dict_yaml`, computing metrics like yield and linearity using list comprehensions with key-driven, top-down path lookups (`fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist()`) is extremely slow for large ROOT files. This caused exponential redundant path parsing, existence checks, and most importantly, redundant `to_hist()` conversions for the same histogram.
+**Action:** Used a directory-driven approach instead. Iterate through available Uproot directories (`dir_obj = fitDiag[f"shapes_{fit}/{ch}"]`), check for sample keys within `dir_obj`, extract objects, call `.to_hist()` exactly once, and accumulate all metrics simultaneously in a single pass.

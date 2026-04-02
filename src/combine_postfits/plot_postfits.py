@@ -112,10 +112,9 @@ def plot(
     channels = [fitDiag_uproot[f"{fit_shapes_name}/{cat}"] for cat in cats]
     if len(channels) == 0:
         return None, (None, None)
+    # ⚡ Bolt: Replace O(n²) list flattening with set comprehension
     orig_hist_keys = [
-        k.split(";")[0]
-        for k in list(set(sum([c.keys() for c in channels], [])))
-        if "data" not in k and "covar" not in k
+        k.split(";")[0] for k in {k for c in channels for k in c.keys()} if "data" not in k and "covar" not in k
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
@@ -192,7 +191,8 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    # ⚡ Bolt: Replace O(n²) flattening with short-circuiting `any` generator
+    if not any("total_signal" in c for c in channels):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [

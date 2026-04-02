@@ -703,7 +703,8 @@ def main():
                 p.start()
                 time.sleep(0.1)
 
-                n_running = sum([p.is_alive() for p in _procs])
+                # ⚡ Bolt: Use generator for `sum()` instead of list comprehension
+                n_running = sum(p.is_alive() for p in _procs)
                 progress.update(
                     prog_plotting,
                     completed=len(_procs) - n_running,
@@ -715,8 +716,9 @@ def main():
                 mod_plot()
                 progress.update(prog_plotting, advance=1, refresh=True)
         if args.multiprocessing > 0:
-            while sum([p.is_alive() for p in _procs]) > 0:
-                n_running = sum([p.is_alive() for p in _procs])
+            # ⚡ Bolt: Use `any()` for short-circuiting and generator for `sum()`
+            while any(p.is_alive() for p in _procs):
+                n_running = sum(p.is_alive() for p in _procs)
                 progress.update(
                     prog_plotting,
                     completed=len(_procs) - n_running,

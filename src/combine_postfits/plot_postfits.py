@@ -113,9 +113,7 @@ def plot(
     if len(channels) == 0:
         return None, (None, None)
     orig_hist_keys = [
-        k.split(";")[0]
-        for k in list(set(sum([c.keys() for c in channels], [])))
-        if "data" not in k and "covar" not in k
+        k.split(";")[0] for k in list({k for c in channels for k in c.keys()}) if "data" not in k and "covar" not in k
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
@@ -192,7 +190,7 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    if not any("total_signal" in c for c in channels):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [

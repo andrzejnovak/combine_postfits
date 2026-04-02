@@ -113,9 +113,7 @@ def plot(
     if len(channels) == 0:
         return None, (None, None)
     orig_hist_keys = [
-        k.split(";")[0]
-        for k in list(set(sum([c.keys() for c in channels], [])))
-        if "data" not in k and "covar" not in k
+        k.split(";")[0] for k in {k for c in channels for k in c.keys()} if "data" not in k and "covar" not in k
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
     hist_dict = geths(
@@ -192,7 +190,7 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    if not any("total_signal" in c for c in channels):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [
@@ -414,7 +412,7 @@ def plot(
         )
     # Signal plotting
     # Plot total signal if sum of matched signals doesn't match total, emit warning
-    if not np.round(np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original])) == np.round(
+    if not np.round(sum(np.sum(hist_dict_fcn(sig, raw=True).values()) for sig in sigs_original)) == np.round(
         np.sum(hist_dict_fcn("total_signal", raw=True).values())
     ):
         logging.warning(

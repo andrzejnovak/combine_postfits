@@ -396,7 +396,7 @@ def getha(name, channels, restoreNorm=True):
     for shapes_dir in channels:
         if name not in shapes_dir:
             logging.debug(f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped.")
-    return sum([geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir])
+    return sum((geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir))
 
 
 def geths(names, channels, restoreNorm=True, style_dict=None):

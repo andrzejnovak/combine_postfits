@@ -12,6 +12,7 @@ np.seterr(divide="ignore", invalid="ignore")
 
 import fnmatch
 import itertools
+import re
 
 
 @typechecked
@@ -45,7 +46,8 @@ def plot_cov(
         if any(any(special in pattern for special in ["*", "?"]) for pattern in include):
             keys = []
             for pattern in include:
-                keys.append([k for k in x_labels if fnmatch.fnmatch(k, pattern)])
+                regex = re.compile(fnmatch.translate(pattern))
+                keys.append([k for k in x_labels if regex.match(k)])
             keys = list(dict.fromkeys(list(itertools.chain.from_iterable(keys))))
         else:
             keys = include
@@ -54,11 +56,14 @@ def plot_cov(
     if exclude is not None:
         if not isinstance(exclude, list):
             exclude = [exclude]
-        exclude_keys = []
-        for pattern in exclude:
-            exclude_keys.append([k for k in x_labels if fnmatch.fnmatch(k, pattern)])
-        exclude_keys = list(dict.fromkeys(list(itertools.chain.from_iterable(exclude_keys))))
-        keys = [k for k in keys if k not in exclude_keys]
+        exclude = [p for p in exclude if p.strip()]
+        if exclude:
+            combined_pattern = "|".join(fnmatch.translate(p) for p in exclude)
+            exclude_regex = re.compile(combined_pattern)
+            exclude_keys = [k for k in x_labels if exclude_regex.match(k)]
+            keys = [k for k in keys if k not in exclude_keys]
+        else:
+            exclude_keys = []
         logging.debug(
             f"  --exclude {len(exclude_keys)} / {len(x_labels)} keys: {exclude_keys if len(exclude_keys) < 10 else exclude_keys[:5] + ['...']}"
         )

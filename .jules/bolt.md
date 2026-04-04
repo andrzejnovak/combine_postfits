@@ -1,3 +1,3 @@
-## 2025-02-19 - Removed redundant O(n) scan in inner loop
-**Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
-**Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+## 2025-02-23 - Visual Regression order dependencies with set()
+**Learning:** In Python, replacing `list(set(sum([...], [])))` with generator expressions or set comprehensions `list({k for ...})` removes $O(N^2)$ memory churn, but modifies the random iteration order (hash seed) compared to original deterministic list extensions. This randomly changes the plotting stack order, breaking visual regression tests.
+**Action:** When replacing set deduplication in order-sensitive loops, use `dict.fromkeys(generator)` which efficiently deduplicates elements and retains standard python 3.7+ insertion order.

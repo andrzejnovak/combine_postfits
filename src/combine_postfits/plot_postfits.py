@@ -112,9 +112,11 @@ def plot(
     channels = [fitDiag_uproot[f"{fit_shapes_name}/{cat}"] for cat in cats]
     if len(channels) == 0:
         return None, (None, None)
+    # ⚡ Bolt: Use dict.fromkeys() to preserve order while efficiently removing duplicates
+    # previously: list(set(sum([c.keys() for c in channels], [])))
     orig_hist_keys = [
         k.split(";")[0]
-        for k in list(set(sum([c.keys() for c in channels], [])))
+        for k in dict.fromkeys(k for c in channels for k in c.keys())
         if "data" not in k and "covar" not in k
     ]
     data = getha("data", channels, restoreNorm=restoreNorm)
@@ -192,7 +194,8 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    # ⚡ Bolt: Replace O(N^2) flatten + set search with short-circuiting generator expression
+    if not any("total_signal" in c for c in channels):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [

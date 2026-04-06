@@ -1,0 +1,4 @@
+💡 What: Replaced generalized `np.polyfit` SVD routines with manual algebraic 1D linear regression (vectorized using `np.sum`) in `linearity()`.
+🎯 Why: `linearity()` is called inside a nested comprehension for every sample, channel, and fit type in `make_style_dict_yaml` during Uproot parsing. `np.polyfit` has significant overhead for small arrays, making it a bottleneck.
+📊 Impact: Expected to reduce processing time by ~3x during linearity/yield metric sorting on dense ROOT files.
+🔬 Measurement: Validated mathematically by testing `linearity_old` vs `linearity_new` yielding identical scores with lower time footprint. Passed full visual regression test suite. Added `np.errstate` to gracefully handle warnings on zero division (sparse bins).

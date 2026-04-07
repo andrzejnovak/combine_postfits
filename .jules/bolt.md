@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2025-02-19 - Removed redundant O(n^2) Uproot file traversal in style dict creation
+**Learning:** In `make_style_dict_yaml`, repeatedly looking up `fitDiag[f"shapes_{fit}/{ch}/{k}"]` inside list comprehensions caused Uproot to redundantly parse and extract nested ROOT paths. Furthermore, the objects were extracted and converted to histograms via `.to_hist()` twice for each key (once for yield, once for linearity calculation). This nested combination created a huge bottleneck.
+**Action:** Lift the path traversal: extract the channel directory objects (`shapes_{fit}/{ch}`) once, iterate over their available keys, and compute both yield and linearity metrics simultaneously off a single `.to_hist()` call per object. This changed the traversal from O(n^2) path lookups to O(n) iteration.

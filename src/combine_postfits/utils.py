@@ -166,33 +166,27 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    # ⚡ Bolt Optimization: Replace O(N^2) path lookup and duplicate `.to_hist()` calls
+    # with a single-pass O(N) traversal over uproot directories
+    yield_dict = {k: 0 for k in sample_keys}
+    linearity_lists = {k: [] for k in sample_keys}
+
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            dir_path = f"shapes_{fit}/{ch}"
+            if dir_path in fitDiag:
+                ch_dir = fitDiag[dir_path]
+                # To emulate original behavior, we want cycle=False.
+                # `uproot.ReadOnlyDirectory.keys(cycle=False)` handles deduplicating cycles and returns base names.
+                for key in ch_dir.keys(cycle=False):
+                    if key in sample_keys and "total" not in key:
+                        obj = ch_dir[key]
+                        if hasattr(obj, "to_hist"):
+                            h = obj.to_hist()
+                            yield_dict[key] += np.sum(h.values())
+                            linearity_lists[key].append(linearity(h))
+
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

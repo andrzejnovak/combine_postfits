@@ -139,18 +139,6 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
     avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
-    def get_samples_fitDiag(fitDiag):
-        snames = []
-        for fit in avail_fit_types:
-            try:
-                for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
-            except KeyError:
-                print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
-
-    sample_keys = get_samples_fitDiag(fitDiag)
-
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
@@ -166,33 +154,49 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {}
+    linearity_vals = {}
+    sample_keys_set = set()
+
+    for fit in avail_fit_types:
+        if f"shapes_{fit}" not in fitDiag:
+            print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
+            continue
+        shapes_dir = fitDiag[f"shapes_{fit}"]
+        for ch in avail_channels:
+            if ch not in shapes_dir:
+                continue
+            ch_dir = shapes_dir[ch]
+            for k in ch_dir.keys(cycle=False):
+                if "covar" in k:
+                    continue
+                sample_keys_set.add(k)
+                if "total" not in k:
+                    obj = ch_dir[k]
+                    if hasattr(obj, "to_hist"):
+                        hist = obj.to_hist()
+                        yield_dict[k] = yield_dict.get(k, 0) + np.sum(hist.values())
+                        lin = linearity(hist)
+                        if k not in linearity_vals:
+                            linearity_vals[k] = []
+                        linearity_vals[k].append(lin)
+
+    sample_keys = sorted(list(sample_keys_set))
+
+    # Pad missing keys
+    for k in sample_keys:
+        if k not in yield_dict:
+            yield_dict[k] = 0
+
+    linearity_dict = {}
+    for k in sample_keys:
+        if "total" not in k and k in linearity_vals:
+            # Need to append 0 to match legacy behavior
+            vals = linearity_vals[k] + [0]
+            linearity_dict[k] = np.mean(vals)
+        else:
+            linearity_dict[k] = 0
+
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

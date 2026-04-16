@@ -1,3 +1,6 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+## 2026-04-16 - Removed redundant array allocations inside boolean checks
+**Learning:** Checking for elements in deeply nested lists using `sum([list], [])` and iterating with list comprehensions inside `sum()` during loop checks (like checking process `is_alive`) causes unnecessary memory allocations and is an O(N) performance leak.
+**Action:** Always favor short-circuiting `any()` for presence checks, and replace list comprehensions inside aggregates with generator expressions (e.g. `sum(p.is_alive() for p in _procs)`) to avoid intermediate allocations.

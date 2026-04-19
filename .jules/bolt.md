@@ -1,3 +1,6 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+## 2025-02-19 - Optimizing collection comprehensions and flattening
+**Learning:** O(N^2) list flattening via `sum([list(c.keys()) for c in channels], [])` followed by `list(set(...))` is noticeably slow when only performing boolean existence checks for a specific key.
+**Action:** Used `any(key in c for c in channels)` instead to enable short-circuiting and bypass intermediate lists, reducing execution time significantly. Removed redundant array allocations in aggregate functions (e.g. `sum(p.is_alive() for p in _procs)` instead of `sum([p.is_alive() for p in _procs])`) and while-loop conditions `any(p.is_alive() for p in _procs)`.

@@ -183,10 +183,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                             yield_dict[k] += sum(h.values())
                             linearity_lists[k].append(linearity(h))
 
-    linearity_dict = {
-        k: np.mean(linearity_lists[k] + [0])
-        for k in sample_keys
-    }
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

@@ -184,10 +184,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                             lin_sum[k] += linearity(h)
                             lin_count[k] += 1
 
-    linearity_dict = {
-        k: (lin_sum[k] / lin_count[k] if lin_count[k] > 0 else 0.0)
-        for k in sample_keys
-    }
+    linearity_dict = {k: (lin_sum[k] / lin_count[k] if lin_count[k] > 0 else 0.0) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

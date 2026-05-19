@@ -34,9 +34,16 @@ def plot_cov(
     y_labels = [h2.GetYaxis().GetBinLabel(i) for i in range(1, y_bins + 1)]
     x_labels = [h2.GetXaxis().GetBinLabel(i) for i in range(1, x_bins + 1)]
     hist_2d = hist.new.StrCat(x_labels, label="").StrCat(y_labels, label="").Double()
-    for i in range(0, x_bins):
-        for j in range(0, y_bins):
-            hist_2d.view()[i, j] = h2.GetBinContent(i + 1, j + 1)
+
+    # ⚡ Bolt: Bulk extract TH2 data buffer to avoid slow O(N^2) Python-C++ GetBinContent loops
+    _dtype = np.float64
+    if h2.ClassName() == "TH2F":
+        _dtype = np.float32
+    elif h2.ClassName() == "TH2I":
+        _dtype = np.int32
+
+    arr = np.ndarray((y_bins + 2, x_bins + 2), dtype=_dtype, buffer=h2.GetArray())
+    hist_2d.view()[:] = arr[1:-1, 1:-1].T
 
     keys = x_labels
     if isinstance(include, str) or isinstance(include, list):

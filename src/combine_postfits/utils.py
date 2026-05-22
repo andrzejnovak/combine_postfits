@@ -140,59 +140,60 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
     def get_samples_fitDiag(fitDiag):
-        snames = []
+        snames = set()
         for fit in avail_fit_types:
             try:
                 for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
+                    snames.update([k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()])
             except KeyError:
                 print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
+        return sorted([k for k in list(snames) if "covar" not in k])
 
     sample_keys = get_samples_fitDiag(fitDiag)
 
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
-        x = np.arange(len(_h))
+        x = np.arange(len(_h), dtype=float)
         if len(_h) <= 1:
-            return 0
-        try:
-            coef = np.polyfit(x, _h, 1)
-        except:  # noqa
-            return 0
-        poly1d_fn = np.poly1d(coef)
-        fy = poly1d_fn(x)
-        residuals = abs(fy - _h) / np.sqrt(_h)
+            return 0.0
+
+        # optimized polyfit for 1D case
+        N = len(_h)
+        sum_x = np.sum(x)
+        sum_y = np.sum(_h)
+        sum_x2 = np.sum(x**2)
+        sum_xy = np.sum(x * _h)
+
+        denominator = N * sum_x2 - sum_x**2
+        if denominator == 0:
+            return 0.0
+
+        m = (N * sum_xy - sum_x * sum_y) / denominator
+        c = (sum_y - m * sum_x) / N
+
+        fy = m * x + c
+        residuals = np.abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {k: 0.0 for k in sample_keys}
+    linearity_lists = {k: [] for k in sample_keys}
+
+    # ⚡ Bolt: Directory-driven extraction avoids redundant O(N) path lookups and multiple .to_hist() calls
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            dir_path = f"shapes_{fit}/{ch}"
+            if dir_path in fitDiag:
+                ch_dir = fitDiag[dir_path]
+                for k in ch_dir.keys(cycle=False):
+                    if k in sample_keys and "total" not in k:
+                        obj = ch_dir[k]
+                        if hasattr(obj, "to_hist"):
+                            h = obj.to_hist()
+                            yield_dict[k] += sum(h.values())
+                            linearity_lists[k].append(linearity(h))
+
+    linearity_dict = {k: np.mean(linearity_lists[k] + [0]) for k in sample_keys}
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

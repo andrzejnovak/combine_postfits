@@ -1,3 +1,6 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+## 2026-05-22 - Optimized Uproot Directory Loop
+**Learning:** `make_style_dict_yaml` had a high overhead because of repeated `.to_hist()` calls and O(N^2) recursive path lookups while building `yield` and `linearity` dictionaries.
+**Action:** When working with nested PyROOT/Uproot data, use a directory-driven approach iterating over `dir_obj.keys(cycle=False)` exactly once to pull objects, apply `.to_hist()` exactly once, and compute all necessary stats per object simultaneously. Also replace generalized `np.polyfit` with manual vectorization formulas for small 1D arrays for significant speedups.

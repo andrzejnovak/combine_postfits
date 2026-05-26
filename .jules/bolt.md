@@ -1,3 +1,7 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+
+## 2025-02-19 - Bulk Directory-Driven Extraction and Vectorized Linearity
+**Learning:** In `make_style_dict_yaml`, repeatedly looking up objects by full path (e.g., `f"shapes_{fit}/{ch}/{k}"`) inside deep loop comprehensions resulted in enormous PyROOT/Uproot overhead. Furthermore, calling `np.polyfit` on tiny arrays for computing linearity is extremely slow because it invokes expensive generalized least squares / SVD routines.
+**Action:** Always prefer dictionary/directory-driven bulk processing. Fetch all keys in a directory using `ch_dir.keys(cycle=False)`, process them in one pass, and extract `.to_hist()` exactly once per object. For 1D linear regression on small arrays, use manual vectorized math (slope and intercept calculations via `np.sum`) instead of `np.polyfit`.

@@ -450,6 +450,11 @@ def main():
                 f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
             )
 
+    # Precompute cats mapping properties to avoid redundant loops
+    cats_parsed = args.cats.split(";") if args.cats is not None else []
+    merged_cats = [catmap.split(":")[0] for catmap in cats_parsed if ":" in catmap]
+    cat_map = {parts[0]: parts[1] for s in cats_parsed if ":" in s for parts in [s.split(":", 1)]}
+
     # Get types/cats/blinds unwrapped
     all_channels = []
     all_blinds = []  # blind category
@@ -465,18 +470,14 @@ def main():
         for pattern in blind_cat_patterns:
             blinded_channels.extend(fnmatch.filter(available_channels, pattern))
             if args.cats is not None and ":" in args.cats:
-                blinded_channels.extend(
-                    fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern)
-                )  # allow merged cats
+                blinded_channels.extend(fnmatch.filter(merged_cats, pattern))  # allow merged cats
         blind_cats = list(set(blinded_channels))
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
             blind_mapping_flattened = {}
             if args.cats is not None and ":" in args.cats:
                 for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter(
-                        [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern
-                    ):
+                    for channel in fnmatch.filter(merged_cats, pattern):
                         blind_mapping_flattened[channel] = slice_string
             else:
                 # If no --cats specified, try matching against available_channels
@@ -500,7 +501,7 @@ def main():
                 channels = []
                 blinds = []
                 savenames = []
-                for cat in args.cats.split(";"):
+                for cat in cats_parsed:
                     if ":" not in cat:
                         logging.error(f"Invalid cats mapping '{cat}', expected 'merged_cat:cat1,cat2'. Skipping.")
                         continue
@@ -621,10 +622,7 @@ def main():
                 if len(channel) < 6:
                     label = 1
                 else:
-                    _cat_map = {
-                        parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]
-                    }
-                    label = _cat_map.get(sname, 1)
+                    label = cat_map.get(sname, 1)
 
             def mod_plot(semaphore=None):
                 try:

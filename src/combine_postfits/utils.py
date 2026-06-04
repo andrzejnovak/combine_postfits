@@ -140,59 +140,74 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
     def get_samples_fitDiag(fitDiag):
-        snames = []
+        snames = set()
         for fit in avail_fit_types:
             try:
                 for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
+                    snames.update(k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys())
             except KeyError:
                 print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
+        return sorted(k for k in snames if "covar" not in k)
 
     sample_keys = get_samples_fitDiag(fitDiag)
 
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
-        x = np.arange(len(_h))
-        if len(_h) <= 1:
+        x = np.arange(len(_h), dtype=float)
+        n = len(x)
+        if n <= 1:
             return 0
         try:
-            coef = np.polyfit(x, _h, 1)
+            sum_x = np.sum(x)
+            sum_y = np.sum(_h)
+            sum_xy = np.sum(x * _h)
+            sum_xx = np.sum(x * x)
+            denom = n * sum_xx - sum_x * sum_x
+            if denom == 0:
+                return 0
+            m = (n * sum_xy - sum_x * sum_y) / denom
+            c = (sum_y - m * sum_x) / n
+            fy = m * x + c
+            residuals = abs(fy - _h) / np.sqrt(_h)
+            return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
         except:  # noqa
             return 0
-        poly1d_fn = np.poly1d(coef)
-        fy = poly1d_fn(x)
-        residuals = abs(fy - _h) / np.sqrt(_h)
-        return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
-    linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
-        for k in sample_keys
-    }
+    yield_dict = {}
+    linearity_sums = {}
+    linearity_counts = {}
+
+    for fit in avail_fit_types:
+        for ch in avail_channels:
+            dir_path = f"shapes_{fit}/{ch}"
+            if dir_path not in fitDiag:
+                continue
+            dir_obj = fitDiag[dir_path]
+            for key_cycle in dir_obj.keys(cycle=False):
+                key = key_cycle
+                if "total" in key:
+                    continue
+                if key not in sample_keys:
+                    continue
+
+                obj = dir_obj[key_cycle]
+                if hasattr(obj, "to_hist"):
+                    h = obj.to_hist()
+                    val = sum(h.values())
+                    yield_dict[key] = yield_dict.get(key, 0) + val
+
+                    lin_val = linearity(h)
+                    linearity_sums[key] = linearity_sums.get(key, 0) + lin_val
+                    linearity_counts[key] = linearity_counts.get(key, 0) + 1
+
+    linearity_dict = {k: 0.0 for k in sample_keys}
+    for k in sample_keys:
+        s = linearity_sums.get(k, 0)
+        c = linearity_counts.get(k, 0)
+        linearity_dict[k] = s / (c + 1)
+        if k not in yield_dict:
+            yield_dict[k] = 0
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:

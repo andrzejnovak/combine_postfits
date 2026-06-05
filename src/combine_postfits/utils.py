@@ -165,7 +165,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             x_mean = np.mean(x)
             y_mean = np.mean(_h)
             # Calculate slope and intercept
-            slope = np.sum((x - x_mean) * (_h - y_mean)) / np.sum((x - x_mean)**2)
+            slope = np.sum((x - x_mean) * (_h - y_mean)) / np.sum((x - x_mean) ** 2)
             intercept = y_mean - slope * x_mean
             fy = slope * x + intercept
         except:  # noqa

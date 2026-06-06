@@ -192,7 +192,7 @@ def plot(
                 hist_keys.remove(key)
 
     # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    if not any("total_signal" in c for c in channels):  # no signal in CRs
         default_signal = []
     else:
         default_signal = [

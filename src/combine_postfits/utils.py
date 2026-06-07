@@ -137,17 +137,22 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
 
     fit_types = ["prefit", "fit_s", "fit_b"]
     avail_fit_types = [f for f in fit_types if f"shapes_{f}" in fitDiag]
-    avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
+    avail_channels = [
+        k for k, cls in fitDiag[f"shapes_{avail_fit_types[-1]}"].classnames(cycle=False).items() if cls == "TDirectory"
+    ]
 
     def get_samples_fitDiag(fitDiag):
-        snames = []
+        snames = set()
         for fit in avail_fit_types:
             try:
-                for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
+                fit_dir = fitDiag[f"shapes_{fit}"]
+                # Filter classes to TDirectory to get channels directly
+                for ch in (k for k, cls in fit_dir.classnames(cycle=False).items() if cls == "TDirectory"):
+                    # Use keys(cycle=False) to get sample names without trailing ';1'
+                    snames.update(fit_dir[ch].keys(cycle=False))
             except KeyError:
                 print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
+        return sorted([k for k in list(snames) if "covar" not in k])
 
     sample_keys = get_samples_fitDiag(fitDiag)
 

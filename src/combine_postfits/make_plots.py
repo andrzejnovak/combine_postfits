@@ -459,7 +459,9 @@ def main():
     confirmed_overlap = False  # Flag to track if user has already confirmed overlaps
     for fit_type in fit_types:
         # all channels
-        available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
+        available_channels = [
+            k for k, cls in fd[f"shapes_{fit_type}"].classnames(cycle=False).items() if cls == "TDirectory"
+        ]
         logging.debug(f"Available '{fit_type}' channels: {available_channels}")
         blinded_channels = []
         for pattern in blind_cat_patterns:

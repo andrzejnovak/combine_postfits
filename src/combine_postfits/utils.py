@@ -204,8 +204,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
                             linearity_counts[key_cycle] += 1
 
     linearity_dict = {
-        k: (linearity_sums[k] / linearity_counts[k] if linearity_counts[k] > 0 else 0)
-        for k in sample_keys
+        k: (linearity_sums[k] / linearity_counts[k] if linearity_counts[k] > 0 else 0) for k in sample_keys
     }
     sort_score_dicts = {}
     for k, v in yield_dict.items():

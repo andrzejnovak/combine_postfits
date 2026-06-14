@@ -352,6 +352,22 @@ def main():
 
     args = parser.parse_args()
 
+    # Precompute cats parsing
+    cats_has_colon = False
+    cats_split_colon_keys = []
+    cat_map = {}
+    cats_split_semi = []
+    cats_split_comma = []
+
+    if args.cats is not None:
+        cats_has_colon = ":" in args.cats
+        if cats_has_colon:
+            cats_split_colon_keys = [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap]
+            cat_map = {parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]}
+            cats_split_semi = args.cats.split(";")
+        else:
+            cats_split_comma = args.cats.split(",")
+
     os.makedirs(args.output, exist_ok=True)
 
     # Arg processing
@@ -464,19 +480,15 @@ def main():
         blinded_channels = []
         for pattern in blind_cat_patterns:
             blinded_channels.extend(fnmatch.filter(available_channels, pattern))
-            if args.cats is not None and ":" in args.cats:
-                blinded_channels.extend(
-                    fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern)
-                )  # allow merged cats
+            if args.cats is not None and cats_has_colon:
+                blinded_channels.extend(fnmatch.filter(cats_split_colon_keys, pattern))  # allow merged cats
         blind_cats = list(set(blinded_channels))
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
             blind_mapping_flattened = {}
-            if args.cats is not None and ":" in args.cats:
+            if args.cats is not None and cats_has_colon:
                 for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter(
-                        [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern
-                    ):
+                    for channel in fnmatch.filter(cats_split_colon_keys, pattern):
                         blind_mapping_flattened[channel] = slice_string
             else:
                 # If no --cats specified, try matching against available_channels
@@ -496,11 +508,11 @@ def main():
         # Parse --cats, either mapping or list
         else:
             # mapping
-            if ":" in args.cats:
+            if cats_has_colon:
                 channels = []
                 blinds = []
                 savenames = []
-                for cat in args.cats.split(";"):
+                for cat in cats_split_semi:
                     if ":" not in cat:
                         logging.error(f"Invalid cats mapping '{cat}', expected 'merged_cat:cat1,cat2'. Skipping.")
                         continue
@@ -518,7 +530,7 @@ def main():
             # list
             else:
                 channels = sum(
-                    [fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")],
+                    [fnmatch.filter(available_channels, _cat) for _cat in cats_split_comma],
                     [],
                 )
                 blinds = [True if c in blind_cats else False for c in channels]
@@ -621,10 +633,7 @@ def main():
                 if len(channel) < 6:
                     label = 1
                 else:
-                    _cat_map = {
-                        parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]
-                    }
-                    label = _cat_map.get(sname, 1)
+                    label = cat_map.get(sname, 1)
 
             def mod_plot(semaphore=None):
                 try:

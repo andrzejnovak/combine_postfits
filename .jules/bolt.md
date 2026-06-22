@@ -1,3 +1,6 @@
 ## 2025-02-19 - Removed redundant O(n) scan in inner loop
 **Learning:** `np.max([np.max(h.values()) for h in hist_dict.values()])` was being called inside a nested helper function (`hist_dict_fcn`) that executed multiple times for each histogram plotted. Profiling showed this dominated execution time because it was calculating the global max recursively instead of caching it once.
 **Action:** Always look for invariants in nested loops and inner functions. Moved the `_max_value_global` calculation outside the `hist_dict_fcn` to speed up plotting. Remember NOT to use `functools.lru_cache` for `hist_dict_fcn` since it returns deepcopies that are mutated by the caller.
+## 2025-02-19 - Pre-computed category mapping string parsing
+**Learning:** `args.cats.split(";")` and subsequent list comprehensions/dictionary comprehensions were being redundantly executed inside inner loops when matching and processing channels in `make_plots.py`. This overhead increases significantly with the number of channels and mappings.
+**Action:** Always precompute string split operations and argument parsing (like extracting keys and items into lists/dicts) immediately after parameter ingestion when they are reused inside loops or inner functions.

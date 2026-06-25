@@ -354,6 +354,14 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
 
+    # Precompute category mapping variables
+    if args.cats is not None and ":" in args.cats:
+        cats_mapping_keys = [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap]
+        cat_map = {parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]}
+    else:
+        cats_mapping_keys = []
+        cat_map = {}
+
     # Arg processing
     log_level = logging.WARNING
     if args.verbose:
@@ -465,18 +473,14 @@ def main():
         for pattern in blind_cat_patterns:
             blinded_channels.extend(fnmatch.filter(available_channels, pattern))
             if args.cats is not None and ":" in args.cats:
-                blinded_channels.extend(
-                    fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern)
-                )  # allow merged cats
+                blinded_channels.extend(fnmatch.filter(cats_mapping_keys, pattern))  # allow merged cats
         blind_cats = list(set(blinded_channels))
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
             blind_mapping_flattened = {}
             if args.cats is not None and ":" in args.cats:
                 for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter(
-                        [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern
-                    ):
+                    for channel in fnmatch.filter(cats_mapping_keys, pattern):
                         blind_mapping_flattened[channel] = slice_string
             else:
                 # If no --cats specified, try matching against available_channels
@@ -621,10 +625,7 @@ def main():
                 if len(channel) < 6:
                     label = 1
                 else:
-                    _cat_map = {
-                        parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]
-                    }
-                    label = _cat_map.get(sname, 1)
+                    label = cat_map.get(sname, 1)
 
             def mod_plot(semaphore=None):
                 try:

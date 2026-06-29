@@ -7,7 +7,6 @@ from collections import defaultdict
 from multiprocessing import Process, Semaphore
 
 import matplotlib
-import numpy as np
 import uproot
 import yaml
 
@@ -85,7 +84,7 @@ def sci_notation(number, sig_fig=1, no_zero=False):
 
 
 def get_digits(number):
-    before, _, after = np.round(number, 10).astype(str).partition(".")
+    before, _, after = f"{round(number, 10)}".partition(".")
     return len(before), len(after)
 
 
@@ -457,6 +456,22 @@ def main():
     all_savenames = []
     all_labels = []
     confirmed_overlap = False  # Flag to track if user has already confirmed overlaps
+
+    # Pre-compute cat splits to avoid redundant splits in loops
+    cats_list = None
+    cats_mapping_keys = []
+    cat_map = {}
+    cats_mapping_items = []
+    if args.cats is not None:
+        cats_list = args.cats.split(";")
+        if ":" in args.cats:
+            for s in cats_list:
+                if ":" in s:
+                    parts = s.split(":", 1)
+                    cats_mapping_keys.append(parts[0])
+                    cat_map[parts[0]] = parts[1]
+                    cats_mapping_items.append((parts[0], parts[1]))
+
     for fit_type in fit_types:
         # all channels
         available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
@@ -465,18 +480,14 @@ def main():
         for pattern in blind_cat_patterns:
             blinded_channels.extend(fnmatch.filter(available_channels, pattern))
             if args.cats is not None and ":" in args.cats:
-                blinded_channels.extend(
-                    fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern)
-                )  # allow merged cats
+                blinded_channels.extend(fnmatch.filter(cats_mapping_keys, pattern))  # allow merged cats
         blind_cats = list(set(blinded_channels))
         logging.debug(f"Categories to blind: {blind_cats}")
         if blind_mapping is not None:
             blind_mapping_flattened = {}
             if args.cats is not None and ":" in args.cats:
                 for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter(
-                        [catmap.split(":")[0] for catmap in args.cats.split(";") if ":" in catmap], pattern
-                    ):
+                    for channel in fnmatch.filter(cats_mapping_keys, pattern):
                         blind_mapping_flattened[channel] = slice_string
             else:
                 # If no --cats specified, try matching against available_channels
@@ -500,7 +511,7 @@ def main():
                 channels = []
                 blinds = []
                 savenames = []
-                for cat in args.cats.split(";"):
+                for cat in cats_list:
                     if ":" not in cat:
                         logging.error(f"Invalid cats mapping '{cat}', expected 'merged_cat:cat1,cat2'. Skipping.")
                         continue
@@ -621,10 +632,7 @@ def main():
                 if len(channel) < 6:
                     label = 1
                 else:
-                    _cat_map = {
-                        parts[0]: parts[1] for s in args.cats.split(";") if ":" in s for parts in [s.split(":", 1)]
-                    }
-                    label = _cat_map.get(sname, 1)
+                    label = cat_map.get(sname, 1)
 
             def mod_plot(semaphore=None):
                 try:

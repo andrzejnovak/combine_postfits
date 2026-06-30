@@ -7,7 +7,6 @@ from collections import defaultdict
 from multiprocessing import Process, Semaphore
 
 import matplotlib
-import numpy as np
 import uproot
 import yaml
 

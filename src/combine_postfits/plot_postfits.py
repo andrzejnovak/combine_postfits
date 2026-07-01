@@ -37,8 +37,6 @@ from .utils import (  # Hist masking
     merge_hists,
 )
 
-np.seterr(divide="ignore", invalid="ignore")
-
 
 @dataclass
 class PlotConfig:
@@ -62,7 +60,7 @@ class PlotConfig:
 
 
 class HistManager:
-    def __init__(self, hist_dict, data):
+    def __init__(self, hist_dict):
         self.hist_dict = hist_dict
         self._max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()]) if hist_dict else 0
 
@@ -73,15 +71,16 @@ class HistManager:
             _hobj.view().value *= 0
             _hobj.view().variance *= 0
             return _hobj
+        if raw:  # Read-only callers; skip the expensive deepcopy.
+            return self.hist_dict[name]
         _hobj = deepcopy(self.hist_dict[name])
-        if raw:
-            return _hobj
         if np.any(_hobj.values() < 0):
-            _th = th * np.min(_hobj.values())
-            non_zero_indices = np.where(_hobj.values() < _th)[0]
+            # Signal templates may dip negative; select significant bins by magnitude, not sign.
+            _values = np.abs(_hobj.values())
         else:
-            _th = th * (np.max(self._max_value_global) if global_scale else np.max(_hobj.values()))
-            non_zero_indices = np.where(_hobj.values() > _th)[0]
+            _values = _hobj.values()
+        _th = th * (self._max_value_global if global_scale else np.max(_values))
+        non_zero_indices = np.where(_values > _th)[0]
         if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
             logging.debug(
                 f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
@@ -110,7 +109,7 @@ def get_stack_styles(items, style_dict, onto=None):
         "none" if h not in ["none", None] or k == onto else style_dict[k]["color"] for k, h in zip(items, _hatch)
     ]
     _edgecolor = [style_dict[k]["color"] if h not in ["none", None] else None for k, h in zip(items, _hatch)]
-    _linewidth = [2 if k == onto else (0 if h not in ["none", None] else 0) for k, h in zip(items, _hatch)]
+    _linewidth = [2 if k == onto else 0 for k in items]
     return _facecolor, _edgecolor, _hatch, _linewidth
 
 
@@ -134,12 +133,12 @@ def set_xlimits(ax, rax, data, tot_bkg, clipx):
     if clipx:
         _h, _bins = data.copy().to_numpy()
         _h += tot_bkg.to_numpy()[0]
-        if len(_bins) > 2:
-            nonzero_left = _bins[:-1][_h > 0]
-            nonzero_right = _bins[1:][_h > 0]
+        nonzero_left = _bins[:-1][_h > 0]
+        nonzero_right = _bins[1:][_h > 0]
+        if len(_bins) > 2 and nonzero_left.size > 0:
             ax.set_xlim(nonzero_left[0], nonzero_right[-1])
             rax.set_xlim(nonzero_left[0], nonzero_right[-1])
-        else:  # Single bin
+        else:  # Single bin or fully-empty category
             ax.set_xlim(_bins[0], _bins[-1])
             rax.set_xlim(_bins[0], _bins[-1])
     else:
@@ -190,7 +189,7 @@ def _draw_signal_strengths(ax, leg, sigs_original, rmap, hist_keys, fitDiag_root
         ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
 
 
-def _calc_chi2(channels, restoreNorm, chi2_nocorr):
+def _calc_chi2(channels, restoreNorm, chi2_nocorr, blind_slice=None):
     # wrap to avoid global variables
     _chi2_tot, _chi2_naive_tot, _nbins = 0, 0, 0
     _chi2_cov_valid = True
@@ -199,11 +198,14 @@ def _calc_chi2(channels, restoreNorm, chi2_nocorr):
         tot = getha("total", [channel], restoreNorm=restoreNorm)
         cov = geth("total_covar", channel, restoreNorm=False).values()
         mask = ~np.isclose(data.values(), 0, atol=1e-4)
+        if blind_slice is not None:  # Exclude partially-blinded bins from the goodness-of-fit.
+            mask[blind_slice] = False
         cov = cov[mask, :]
         cov = cov[:, mask]
         variances = data.variances()[mask]
         diff = data.values()[mask] - tot.values()[mask]
-        chi2_naive = np.sum(np.nan_to_num(diff**2 / variances, posinf=0, neginf=0))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            chi2_naive = np.sum(np.nan_to_num(diff**2 / variances, posinf=0, neginf=0))
         _chi2_naive_tot += chi2_naive
         if not chi2_nocorr:
             try:
@@ -302,7 +304,7 @@ def plot(
             logging.warning(f"  Hist '{key}' is missing and will be ignored. Available keys are: {hist_keys}")
 
     # Soft-fail on missing hist
-    hm = HistManager(hist_dict, data)
+    hm = HistManager(hist_dict)
     get_hist = hm.get
 
     # ── Remove tiny contributions ───────────────────────────────
@@ -488,7 +490,10 @@ def plot(
                     "Cannot infer sample:poi mapping for more than 1 signal. Pass e.g. rmap={'hbb': 'r', 'hcc':'r2'}"
                 )
             else:
-                _rs = {sig: get_fit_val(fitDiag_root, rmap[sig], fittype=fit_type, substitute=1.0) for sig in rmap}
+                _rs = {
+                    sig: get_fit_val(fitDiag_root, rmap[sig], fittype=fit_type, substitute=1.0) if sig in rmap else 1.0
+                    for sig in sigs_original
+                }
         sig_dicts = defaultdict(lambda: 0)
         for sig, proj in zip(sigs_original, project_signal):
             sig_dicts[sig] = proj
@@ -515,11 +520,12 @@ def plot(
     rh_unc = np.zeros_like(data.values())
     rh = None  # set below when data is visible
     if not blind:
-        rh = data.values() - tot_bkg.values()
-        _lo, _hi = np.abs(poisson_interval(data.values(), data.variances()) - data.values())
-        rh_unc[rh < 0] = _hi[rh < 0]
-        rh_unc[rh > 0] = _lo[rh > 0]
-        rh /= rh_unc
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rh = data.values() - tot_bkg.values()
+            _lo, _hi = np.abs(poisson_interval(data.values(), data.variances()) - data.values())
+            rh_unc[rh < 0] = _hi[rh < 0]
+            rh_unc[rh > 0] = _lo[rh > 0]
+            rh /= rh_unc
         if blind_data is not None:
             _sl = _ensure_slice_by_ix(_string_to_slice(blind_data), data.axes[0].edges)
             rh[_sl] = np.nan
@@ -547,10 +553,13 @@ def plot(
         # Plotted signals should match total_signal, replace if not
         _facecolor, _edgecolor, _hatch, _lw = get_stack_styles(sigs_original, style)
         _rh_unc = rh_unc if not blind else np.ones_like(rh_unc)
+        _masked_sigs = [get_hist(sig, global_scale=False, th=0.05) for sig in sigs_original]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            _sig_ratios = [_h.values() / _rh_unc for _h in _masked_sigs]
         hep.histplot(
-            [get_hist(sig, global_scale=False, th=0.05).values() / _rh_unc for sig in sigs_original],
+            _sig_ratios,
             ax=rax,
-            bins=get_hist(sigs_original[0], global_scale=False, th=0.05).axes[0].edges,
+            bins=_masked_sigs[0].axes[0].edges,
             facecolor=_facecolor,
             edgecolor=_edgecolor,
             hatch=_hatch,
@@ -566,9 +575,10 @@ def plot(
             "Fit may not have converged correctly."
         )
     logging.debug(f"  yerr - bkg variances (raw): {np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths)}.")
-    yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(
-        data.variances() * tot_bkg.axes[0].widths
-    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        yerr_nom = np.sqrt(tot_bkg.variances() * tot_bkg.axes[0].widths) / np.sqrt(
+            data.variances() * tot_bkg.axes[0].widths
+        )
     yerr = yerr_nom.copy()
     logging.debug(f"  yerr (raw): {yerr}.")
     yerr[~np.isfinite(yerr_nom)] = 0
@@ -602,13 +612,12 @@ def plot(
     ax.set_xlabel(None)
     rax.set_xlabel(tot_bkg.axes[0].label)
     if restoreNorm:
-        if np.std(data.axes[0].widths) == 0:
-            _binwidth = f"{np.mean(data.axes[0].widths):.0f}"
+        _widths = data.axes[0].widths
+        if np.std(_widths) == 0:
+            ax.set_ylabel(f"Events / {np.mean(_widths):.3g} GeV")
         else:
-            _binwidth = f"{stats.mode(np.mean(data.axes[0].widths)).mode:.0f}"
-            _binwidth = ""
             logging.warning("  Bin-width is not constant. Consider setting custom y-label")
-        ax.set_ylabel(f"Events / {_binwidth}GeV")
+            ax.set_ylabel("Events / GeV")
     else:
         ax.set_ylabel("Events / GeV")
 
@@ -684,7 +693,10 @@ def plot(
         hep.yscale_anchored_text(ax, soft_fail=True)
 
     if (chi2 or chi2_nocorr) and not blind:
-        chi2_val, _nbins, _chi2_cov_valid = _calc_chi2(channels, restoreNorm, chi2_nocorr)
+        _blind_slice = (
+            _ensure_slice_by_ix(_string_to_slice(blind_data), data.axes[0].edges) if blind_data is not None else None
+        )
+        chi2_val, _nbins, _chi2_cov_valid = _calc_chi2(channels, restoreNorm, chi2_nocorr, blind_slice=_blind_slice)
 
         chi2_label = _format_chi2_label(chi2_val, _nbins, _chi2_cov_valid, chi2_nocorr)
 
@@ -707,9 +719,14 @@ def plot(
         _lo, _hi = np.abs(poisson_interval(data.values(), data.variances()) - data.values())
         resid_unc[resid < 0] = _hi[resid < 0]
         resid_unc[resid > 0] = _lo[resid > 0]
-        resid /= resid_unc
+        if blind_data is not None:  # Honor partial blinding in the residual distribution.
+            _sl = _ensure_slice_by_ix(_string_to_slice(blind_data), data.axes[0].edges)
+            resid[_sl] = np.nan
+        with np.errstate(divide="ignore", invalid="ignore"):
+            resid /= resid_unc
         logging.debug(f"  Residuals: {[f'{v:.2f}' for v in resid]}.")
-        resid = resid[~np.isclose(resid, 0, atol=1e-2)]
+        # Drop empty/blinded (NaN) and effectively-zero bins before computing stats.
+        resid = resid[np.isfinite(resid) & ~np.isclose(resid, 0, atol=1e-2)]
         logging.debug(f"  Residuals (filter zeros): {[f'{v:.2f}' for v in resid]}.")
 
         resid_ax = hep.append_axes(rax, size="26%", extend=False, pad=0.05)

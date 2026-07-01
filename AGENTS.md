@@ -23,7 +23,7 @@ src/combine_postfits/
 
 - **Package manager**: [pixi](https://pixi.sh/) (see `pixi.toml`)
 - **Build system**: Hatchling (`pyproject.toml`)
-- **Python**: ≥3.10, <3.13
+- **Python**: ≥3.11, <3.13
 - **Install for development**: `pixi install` (sets up conda + editable pip install)
 
 ## Testing

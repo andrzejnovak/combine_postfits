@@ -27,13 +27,12 @@ authors = [
 maintainers = [
   { name = "Andrzej Novak", email = "andrzej.novak@cern.ch" },
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 
 classifiers = [
   "Development Status :: 4 - Beta",
   "License :: OSI Approved :: BSD License",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Physics",
@@ -139,7 +138,7 @@ lint-fix = { cmd = "ruff check --fix . && ruff format .", description = "Fix lin
 pre-commit-install = { cmd = "prek install", description = "Install pre-commit hooks" }
 
 [tool.pixi.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.11,<3.13"
 pip = "*"
 root = ">=6.26"
 ruff = "*"
@@ -165,9 +164,6 @@ test-full = { cmd = "pytest tests/ -m 'not visual' -n auto && pytest tests/ -m v
 test-matrix = { cmd = "pytest tests/unit/ -n auto --junitxml=test-results-matrix-unit.xml && combine_postfits -i tests/fitDiags/fit_diag_A.root -o tests/matrix_out -p 2 --data --unblind && pytest tests/ -m root --junitxml=test-results-matrix-root.xml", description = "CI matrix: unit + multiprocessing + ROOT" }
 test-cli = { cmd = "pytest tests/test_cli_exposure.py -v", description = "Verify CLI entry points are installed" }
 
-[tool.pixi.feature.py310.dependencies]
-python = "3.10.*"
-
 [tool.pixi.feature.py311.dependencies]
 python = "3.11.*"
 
@@ -177,6 +173,5 @@ python = "3.12.*"
 [tool.pixi.environments]
 default = { features = ["test"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
-py310 = ["py310", "test"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]

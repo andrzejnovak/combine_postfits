@@ -39,7 +39,6 @@ classifiers = [
 ]
 
 dependencies = [
-  "typing_extensions",
   "typeguard",
   "rich",
   "rich-argparse-plus",
@@ -92,7 +91,7 @@ markers = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py311"
 exclude = ["**/_version.py"]
 
 [tool.ruff.lint]

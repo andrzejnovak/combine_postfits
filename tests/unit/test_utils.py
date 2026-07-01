@@ -13,6 +13,7 @@ from combine_postfits.utils import (
     fill_colors,
     format_categories,
     merge_hists,
+    prep_yaml,
 )
 
 
@@ -245,3 +246,29 @@ class TestCleanYaml:
         result = clean_yaml(style)
         assert "color" in result["sig"]
         assert "hatch" in result["sig"]
+
+
+class TestPrepYaml:
+    def test_prep_yaml_integration(self):
+        style = {"sig": {"label": "Signal"}}
+        result = prep_yaml(style)
+        assert result["sig"]["color"] == cmap10[0]
+        assert result["sig"]["hatch"] is None
+        assert "data" in result
+        assert "total_signal" in result
+
+    def test_prep_yaml_none_handling(self):
+        style = {"sig": {"label": "Sig", "color": "None"}}
+        result = prep_yaml(style)
+        assert result["sig"]["color"] is not None  # It was None, so it should be filled by cmap10
+        assert result["sig"]["color"] == cmap10[0]
+
+    def test_prep_yaml_contains_parsing(self):
+        style = {"ewk": {"label": "EWK", "contains": "wjets zjets"}}
+        result = prep_yaml(style)
+        assert result["ewk"]["contains"] == ["wjets", "zjets"]
+
+    def test_prep_yaml_preserves_existing_colors(self):
+        style = {"sig": {"label": "Signal", "color": "#123456"}}
+        result = prep_yaml(style)
+        assert result["sig"]["color"] == "#123456"

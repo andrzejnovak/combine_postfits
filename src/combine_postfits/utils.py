@@ -156,6 +156,13 @@ def fill_colors(style: dict, cmap: list | str | None = None, no_duplicates: bool
     return style
 
 
+def prep_yaml(style: dict) -> dict:
+    """Normalize a raw style dict: clean fields and fill in default colors."""
+    style = clean_yaml(style)
+    style = fill_colors(style, cmap=cmap10)
+    return style
+
+
 def make_style_dict_yaml(
     fitDiag: uproot.ReadOnlyDirectory, cmap: str = "tab10", sort: bool = True, sort_peaky: bool = False
 ) -> dict:

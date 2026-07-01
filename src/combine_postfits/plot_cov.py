@@ -3,8 +3,6 @@ from typing import List, Optional, Union
 
 import hist
 import matplotlib
-
-# matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np

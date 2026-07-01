@@ -104,6 +104,9 @@ def generate_plot_tasks(
     blind_mapping = {}
     if args.blind_data is not None:
         for _mapping in args.blind_data.split(";"):
+            if ":" not in _mapping:
+                logging.error(f"Invalid blind-data mapping '{_mapping}', expected 'category:range'. Skipping.")
+                continue
             cat_pattern, slice_string = _mapping.split(":", 1)
             blind_mapping[cat_pattern] = slice_string
         logging.debug(f"Blind data mapping:\n{blind_mapping}")
@@ -600,29 +603,17 @@ def main():
         else:
             style["data"]["label"] = "Data"
 
-        if args.blind is not None:
-            blind_cat_patterns = args.blind.split(",") if "," in args.blind else [args.blind]
-        else:
-            blind_cat_patterns = []
-        logging.debug(f"Blind categories matching: {blind_cat_patterns}")
-
-        if args.blind_data is not None:
-            blind_mapping = {}
-            for _mapping in args.blind_data.split(";"):
-                cat_pattern, slice_string = _mapping.split(":", 1)
-                blind_mapping[cat_pattern] = slice_string
-            logging.debug(f"Blind data mapping:\n{blind_mapping}")
-        else:
-            blind_mapping = None
-
-        # Parse rmap
-        # Parse rmap (just for validation/logging here, actual passing happens in loop)
+        # Parse rmap (signal-to-POI mapping); blinding is resolved inside generate_plot_tasks()
+        rmap = None
         if args.rmap is not None:
-            kvs = args.rmap.split(",")
-            rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
+            rmap = {}
+            for kv in args.rmap.split(","):
+                if ":" not in kv:
+                    logging.error(f"Invalid rmap entry '{kv}', expected 'key:value'. Skipping.")
+                    continue
+                key, val = kv.split(":", 1)
+                rmap[key] = val
             logging.debug(f"Signal-to-POI mapping:\n{rmap}")
-        else:
-            rmap = None
 
         # Warn about any signals that lack an rmap entry (also catches partial --rmap)
         if args.sigs:

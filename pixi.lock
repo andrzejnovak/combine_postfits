@@ -2243,8 +2243,8 @@ packages:
   timestamp: 1733218222191
 - pypi: ./
   name: combine-postfits
-  version: 0.1.2.dev9+gf98005814.d20260701
-  sha256: d4917138f2c67e23967c4e4fe4ff36b2ca7be34a68ba9ae43332cd6b0a0fd0aa
+  version: 0.1.2.dev6+ga9733dd4a
+  sha256: 7440e39686d103c66e018bfb57d0a2a92def1972fda595e0f8251db99a3a0642
   requires_dist:
   - hist
   - matplotlib>=3.11
@@ -2255,7 +2255,6 @@ packages:
   - rich-argparse-plus
   - scipy
   - typeguard
-  - typing-extensions
   - uproot
   - pytest ; extra == 'all'
   - pytest-image-diff ; extra == 'all'

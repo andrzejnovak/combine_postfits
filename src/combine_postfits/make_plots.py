@@ -4,12 +4,14 @@ import importlib.util
 import logging
 import sys
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from multiprocessing import Process, Semaphore
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import matplotlib
+import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
 import uproot
@@ -52,8 +54,6 @@ def time_check(progress: Progress, procs: list[Process], limit: int = 5) -> None
         logging.error(f"Terminating remaining plot processes: {[p.name for p in remaining_procs]}")
         for p in remaining_procs:
             p.terminate()
-        import sys
-
         sys.exit()
 
 
@@ -71,8 +71,10 @@ def sci_notation(number: float, sig_fig: int = 1, no_zero: bool = False) -> str:
 
 
 def get_digits(number: float) -> tuple[int, int]:
-    """Return the number of digits before and after the decimal point."""
-    before, _, after = np.round(number, 10).astype(str).partition(".")
+    """Return the number of digits before and after the decimal point (magnitude only)."""
+    # Use abs() so a leading '-' is not counted as a digit, and format_float_positional to
+    # avoid scientific-notation strings (e.g. '1e-05') that would corrupt the digit counts.
+    before, _, after = np.format_float_positional(abs(np.round(number, 10)), trim="-").partition(".")
     return len(before), len(after)
 
 
@@ -135,9 +137,13 @@ def generate_plot_tasks(
         # We flatten the mapping: {channel: "range_string"}
         blind_mapping_flattened = {}
         if args.blind_data:
-            target_channels = (
-                [catmap.split(":")[0] for catmap in args.cats.split(";")] if args.cats else available_channels
-            )
+            # Blind-data patterns are matched against the names that become each plot's savename:
+            # merged-group (mcat) names in mapping mode ("name:pats;..."), otherwise the actual
+            # channel names (list mode "cat1,cat2" and implicit-all both plot real channels).
+            if args.cats and ":" in args.cats:
+                target_channels = [catmap.split(":")[0] for catmap in args.cats.split(";")]
+            else:
+                target_channels = available_channels
             for pattern, slice_string in blind_mapping.items():
                 for channel in fnmatch.filter(target_channels, pattern):
                     blind_mapping_flattened[channel] = slice_string
@@ -185,7 +191,7 @@ def generate_plot_tasks(
                         channels=resolved_cats,
                         blind=(mcat in blind_cats),
                         savename=mcat,
-                        label=args.catlabels if args.catlabels and ";" not in args.catlabels else mcat,
+                        label=None,  # Resolved in main() (supports ';'-separated --catlabels per group)
                         blind_range=blind_mapping_flattened.get(mcat),
                     )
             else:
@@ -214,8 +220,21 @@ def process_plot(
     out_dir: Path,
     format_list: list[str],
 ) -> None:
-    """Process a single plot task (worker function)."""
+    """Process a single plot task (worker function).
+
+    ``fd``/``rfd`` are the parent's open handles, reused directly in the serial path. In the
+    multiprocessing path they are passed as ``None`` and each worker opens its own handles from
+    ``args.input``: a ROOT ``TFile``/uproot directory must not be shared across processes (a forked
+    child would share the file offset, and the handles are not picklable under spawn/forkserver).
+    """
+    fig = None
+    own_handles = False
     try:
+        if fd is None:
+            fd = uproot.open(args.input)
+            own_handles = True
+            if ROOT_AVAILABLE and not args.noroot:
+                rfd = r.TFile.Open(args.input)
         config = plot_postfits.PlotConfig(
             fit_type=task.fittype,
             cats=task.channels,
@@ -283,6 +302,12 @@ def process_plot(
                 # transparent=True,
             )
     finally:
+        if fig is not None:
+            plt.close(fig)  # Release the figure (serial path reuses pyplot's global figure manager)
+        if own_handles:
+            fd.close()
+            if rfd:
+                rfd.Close()
         if semaphore is not None:
             semaphore.release()
 
@@ -624,15 +649,12 @@ def main():
 
         # Generate Tasks
         # We iterate over tasks yielded by the generator
-        _procs: list[Process] = []
-        n_tasks = 0
         all_tasks = []  # Store tasks to allow for label parsing and progress bar total
         for task in generate_plot_tasks(args, fit_types, fd):
-            n_tasks += 1
             all_tasks.append(task)
             logging.debug(f"Processing task: {task}")
 
-        if n_tasks == 0:
+        if not all_tasks:
             logging.warning("No plotting tasks generated. Check your --cats or --fit options.")
             sys.exit(0)
 
@@ -646,6 +668,20 @@ def main():
             else:
                 logging.warning(
                     f"Number of labels ({len(labels_list)}) does not match number of plots ({len(all_tasks)}). Ignoring labels."
+                )
+        # Label parsing for mapping mode: ';'-separated --catlabels map to the merged groups by name.
+        elif args.catlabels is not None and args.cats and ":" in args.cats:
+            labels_list = args.catlabels.split(";")
+            group_names = [group.split(":", 1)[0] for group in args.cats.split(";") if ":" in group]
+            if len(labels_list) == len(group_names):
+                label_by_group = dict(zip(group_names, labels_list))
+                for task in all_tasks:
+                    if task.savename in label_by_group:
+                        task.label = label_by_group[task.savename]
+            else:
+                logging.warning(
+                    f"Number of labels ({len(labels_list)}) does not match number of merged groups "
+                    f"({len(group_names)}). Ignoring labels."
                 )
 
         # Check for overlaps
@@ -692,7 +728,10 @@ def main():
                 sys.exit("Aborted by user due to overlapping categories.")
 
         # Process Tasks
-        _procs = []
+        _procs: list[Process] = []  # currently-live worker processes
+        _finished: list[Process] = []  # completed workers, kept to inspect exit codes
+        completed = 0
+        failed: list[str] = []
         with Progress(
             TextColumn("[progress.description]{task.description}"),
             SpinnerColumn(),
@@ -716,13 +755,23 @@ def main():
                 task.label = "\n".join(str(task.label).split(r"\n"))
 
                 if args.multiprocessing > 0:
+                    # Block until a slot frees; the Semaphore already bounds concurrency, so no
+                    # artificial time.sleep() throttle is needed here.
                     semaphore.acquire()
+                    # Reap finished workers so the live-process scans stay O(live), not O(total).
+                    for done in [p for p in _procs if not p.is_alive()]:
+                        done.join()
+                        _finished.append(done)
+                        _procs.remove(done)
+                        completed += 1
+                    # Pass None handles: each worker opens its own fd/rfd from args.input (a ROOT
+                    # TFile/uproot directory must not be shared across processes); see process_plot.
                     p = Process(
                         target=process_plot,
                         args=(
                             semaphore,
-                            fd,
-                            rfd,
+                            None,
+                            None,
                             task,
                             style,
                             rmap,
@@ -734,14 +783,11 @@ def main():
                     )
                     _procs.append(p)
                     p.start()
-                    time.sleep(0.1)
-
-                    n_running = sum([p.is_alive() for p in _procs])
                     progress.update(
                         prog_plotting,
-                        completed=len(_procs) - n_running,
+                        completed=completed,
                         refresh=True,
-                        description=prog_str_fmt.format(n_running),
+                        description=prog_str_fmt.format(len(_procs)),
                     )
                     time_check(progress, _procs, 6)
                 else:
@@ -758,24 +804,35 @@ def main():
                     )
                     progress.update(prog_plotting, advance=1, refresh=True)
             if args.multiprocessing > 0:
-                while sum([p.is_alive() for p in _procs]) > 0:
-                    n_running = sum([p.is_alive() for p in _procs])
+                # Drain remaining workers, polling so the time_check watchdog can still fire.
+                while _procs:
+                    for done in [p for p in _procs if not p.is_alive()]:
+                        done.join()
+                        _finished.append(done)
+                        _procs.remove(done)
+                        completed += 1
                     progress.update(
                         prog_plotting,
-                        completed=len(_procs) - n_running,
+                        completed=completed,
                         refresh=True,
-                        description=prog_str_fmt.format(n_running),
+                        description=prog_str_fmt.format(len(_procs)),
                     )
-                    time.sleep(0.1)
-
-                    time_check(progress, _procs, 6)
+                    if _procs:
+                        time_check(progress, _procs, 6)
+                        time.sleep(0.1)
+                # Surface worker failures instead of silently counting a crashed worker as done.
+                failed = [p.name for p in _finished if p.exitcode]
+                if failed:
+                    logging.error(f"{len(failed)} plotting worker(s) failed (see tracebacks above): {failed}")
             progress.update(
                 prog_plotting,
-                completed=n_tasks,
-                total=n_tasks,
+                completed=len(all_tasks),
+                total=len(all_tasks),
                 refresh=True,
                 description=prog_str_fmt.format(0),
             )
+        if failed:
+            sys.exit(1)
 
     finally:
         fd.close()

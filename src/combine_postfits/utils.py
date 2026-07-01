@@ -94,9 +94,11 @@ def clean_yaml(style: dict) -> dict:
         for elem in ["label", "color", "hatch"]:
             if elem not in style[key]:
                 style[key][elem] = None
-        # Clean raw-strings (for latex in mpl)
-        if style[key]["label"].startswith("r"):
-            style[key]["label"] = style[key]["label"].split('"')[1]
+        # Clean raw-strings (for latex in mpl), e.g. r"$H_{bb}$" -> $H_{bb}$
+        lbl = style[key]["label"]
+        if isinstance(lbl, str) and lbl.startswith(('r"', "r'")):
+            quote = lbl[1]
+            style[key]["label"] = lbl[2:].rsplit(quote, 1)[0]
         # Clean Nones:
         for elem in style[key]:
             if isinstance(style[key][elem], str) and style[key][elem].lower() == "none":
@@ -135,15 +137,21 @@ def fill_colors(style: dict, cmap: list | str | None = None, no_duplicates: bool
     taken = []
     for key in style:
         if "color" not in style[key] or style[key]["color"] is None:
-            pop_col = next(cycler_iter)
+            pop_col = next(cycler_iter)["color"]
             counter += 1
             logging.info(
                 f'Key "color" not found for sample "{key}". Setting to: {pop_col}',
             )
-            style[key]["color"] = (
-                pop_col["color"] if pop_col["color"] not in taken else adjust_lightness(pop_col["color"], 1.4)
-            )
-            taken.append(pop_col["color"])
+            # Keep lightening until the color is unique so repeats beyond 2x don't collapse.
+            # Bound the attempts: adjust_lightness saturates at white, so an unbounded loop could
+            # spin forever once two colors both reach white; accept a duplicate after that.
+            assigned = pop_col
+            for _ in range(10):
+                if assigned not in taken:
+                    break
+                assigned = adjust_lightness(assigned, 1.4)
+            style[key]["color"] = assigned
+            taken.append(assigned)
     if counter > len(cmap):
         logging.warning(
             f"'cmap' is too short. There will be {counter - len(cmap)} duplicate colors shown in lighter shades.",
@@ -207,37 +215,30 @@ def make_style_dict_yaml(
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
-    yield_dict = {
-        k: sum(
-            [
-                sum(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist().values())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-        )
-        for k in sample_keys
-    }
+    # Convert each histogram once (uproot's to_hist is not memoized) and index each ROOT key
+    # a single time; reuse the cached hist objects for both the yield sum and the linearity score.
+    hist_cache = {k: [] for k in sample_keys}
+    for k in sample_keys:
+        if "total" in k:  # Sum only TH1s, data is black anyway
+            continue
+        for fit in avail_fit_types:
+            for ch in avail_channels:
+                key = f"shapes_{fit}/{ch}/{k}"
+                if key in fitDiag and hasattr(fitDiag[key], "to_hist"):
+                    hist_cache[k].append(fitDiag[key].to_hist())
+
+    yield_dict = {k: sum(sum(h.values()) for h in hist_cache[k]) for k in sample_keys}
     linearity_dict = {
-        k: np.mean(
-            [
-                linearity(fitDiag[f"shapes_{fit}/{ch}/{k}"].to_hist())
-                for fit in avail_fit_types
-                for ch in avail_channels
-                if f"shapes_{fit}/{ch}/{k}" in fitDiag
-                and hasattr(fitDiag[f"shapes_{fit}/{ch}/{k}"], "to_hist")
-                and "total" not in k  # Sum only TH1s, data is black anyway
-            ]
-            + [0]  # pad 0 to prevent mean on empty list
-        )
+        # pad 0 to prevent mean on empty list
+        k: np.mean([linearity(h) for h in hist_cache[k]] + [0])
         for k in sample_keys
     }
     sort_score_dicts = {}
     for k, v in yield_dict.items():
         if sort_peaky:
-            sort_score_dicts[k] = np.log(v) * (linearity_dict[k])
+            # Clamp the yield so a zero/negative sum doesn't produce log(0)=-inf (and -inf*0=nan),
+            # which would make the sort ordering undefined.
+            sort_score_dicts[k] = np.log(max(v, 1e-9)) * (linearity_dict[k])
         else:
             sort_score_dicts[k] = v
     if sort:
@@ -332,21 +333,28 @@ def format_legend(
         loc="upper right",
         **kw,
     )
-    if nentries % 2 == 0:
+    if nentries % ncols == 0:
         return leg1
 
     ax.add_artist(leg1)
     leg2 = ax.legend(
         handles=handles[split:],
         labels=labels[split:],
-        ncol=nentries - nentries // ncols * ncols,
+        ncol=nentries - split,
         **kw,
     )
 
     leg2.remove()
 
-    leg1._legend_box._children.append(leg2._legend_handle_box)
-    leg1._legend_box.stale = True
+    # Merge the overflow column into leg1 via matplotlib's (private) legend box. Guard it so a
+    # future matplotlib that restructures these internals degrades to a single legend rather than crashing.
+    try:
+        leg1._legend_box._children.append(leg2._legend_handle_box)
+        leg1._legend_box.stale = True
+    except AttributeError:
+        logging.warning("Could not merge overflow legend column via matplotlib internals; using a single legend.")
+        leg1.remove()
+        leg1 = ax.legend(handles=handles, labels=labels, ncol=ncols, loc="upper right", **kw)
     return leg1
 
 
@@ -426,10 +434,23 @@ def geth(name: str, shapes_dir: uproot.ReadOnlyDirectory, restoreNorm: bool = Tr
 
 def getha(name: str, channels: list[uproot.ReadOnlyDirectory], restoreNorm: bool = True) -> hist.Hist:
     """Retrieve and sum histograms for a sample across multiple channels."""
+    hists = []
     for shapes_dir in channels:
-        if name not in shapes_dir:
+        if name in shapes_dir:
+            hists.append(geth(name, shapes_dir, restoreNorm=restoreNorm))
+        else:
             logging.debug(f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped.")
-    return sum([geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir])
+    if hists:
+        return sum(hists)
+    # Sample absent from every channel: return a zero-filled hist matching the channel binning
+    # instead of the int 0 that sum([]) would yield (which breaks downstream .values()/arithmetic).
+    for shapes_dir in channels:
+        for tmpl in shapes_dir.keys(cycle=False):
+            try:
+                return geth(tmpl.split(";")[0], shapes_dir, restoreNorm=restoreNorm) * 0
+            except Exception:
+                continue
+    raise ValueError(f"Sample '{name}' not found in any channel and no template histogram is available.")
 
 
 def geths(
@@ -481,13 +502,19 @@ def _ensure_slice_by_ix(s: slice, edges: np.ndarray) -> slice:
 
     Convention: 5j means "the bin containing value 5" (lookup by edge).
     A plain int/float means a direct bin index.
+    Omitted bounds (e.g. "3j:" or ":6j") default to the array ends.
     """
-    if s.start.imag != 0:
+    if s.start is None:
+        start = 0
+    elif s.start.imag != 0:
         start = np.searchsorted(edges, s.start.imag, side="right") - 1
     else:
         start = int(s.start.real)
-    if s.stop.imag != 0:
+    if s.stop is None:
+        stop = len(edges) - 1
+    elif s.stop.imag != 0:
         stop = np.searchsorted(edges, s.stop.imag, side="right")
     else:
         stop = int(s.stop.real)
-    return slice(int(start), int(stop), s.step)
+    step = None if s.step is None else int(s.step.real)
+    return slice(int(start), int(stop), step)

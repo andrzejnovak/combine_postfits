@@ -1,5 +1,4 @@
 import logging
-from typing import List, Optional, Union
 
 import hist
 import matplotlib
@@ -18,11 +17,11 @@ import itertools
 def plot_cov(
     fitDiagnostics_file: str = "fitDiagnostics.root",
     fit_type: str = "fit_s",  # 'prefit' | 'fit_s' | 'fit_b'
-    include: Union[str, List[str], None] = None,
-    exclude: Union[str, List[str], None] = "*mcstat*",
+    include: str | list[str] | None = None,
+    exclude: str | list[str] | None = "*mcstat*",
     tick_rotation: int = 30,
     cmap="RdBu",
-) -> Optional[plt.Axes]:
+) -> plt.Axes | None:
     logging.info(f"Plotting covariance matrix from {fitDiagnostics_file} ({fit_type})")
     import ROOT as r
 
@@ -34,21 +33,18 @@ def plot_cov(
     y_labels = [h2.GetYaxis().GetBinLabel(i) for i in range(1, y_bins + 1)]
     x_labels = [h2.GetXaxis().GetBinLabel(i) for i in range(1, x_bins + 1)]
     hist_2d = hist.new.StrCat(x_labels, label="").StrCat(y_labels, label="").Double()
-    for i in range(0, x_bins):
-        for j in range(0, y_bins):
-            hist_2d.view()[i, j] = h2.GetBinContent(i + 1, j + 1)
+    view = hist_2d.view()
+    content = np.array([[h2.GetBinContent(i + 1, j + 1) for j in range(y_bins)] for i in range(x_bins)])
+    view[:, :] = content
 
-    keys = x_labels
+    keys = list(x_labels)
     if isinstance(include, str) or isinstance(include, list):
         if not isinstance(include, list):
             include = [include]
-        if any(any(special in pattern for special in ["*", "?"]) for pattern in include):
-            keys = []
-            for pattern in include:
-                keys.append([k for k in x_labels if fnmatch.fnmatch(k, pattern)])
-            keys = list(dict.fromkeys(list(itertools.chain.from_iterable(keys))))
-        else:
-            keys = include
+        matched = []
+        for pattern in include:
+            matched.append([k for k in x_labels if fnmatch.fnmatch(k, pattern)])
+        keys = list(dict.fromkeys(list(itertools.chain.from_iterable(matched))))
     logging.debug(f"  --include {len(keys)} / {len(x_labels)} keys: {keys if len(keys) < 10 else keys[:5] + ['...']}")
 
     if exclude is not None:
@@ -58,7 +54,8 @@ def plot_cov(
         for pattern in exclude:
             exclude_keys.append([k for k in x_labels if fnmatch.fnmatch(k, pattern)])
         exclude_keys = list(dict.fromkeys(list(itertools.chain.from_iterable(exclude_keys))))
-        keys = [k for k in keys if k not in exclude_keys]
+        exclude_key_set = set(exclude_keys)
+        keys = [k for k in keys if k not in exclude_key_set]
         logging.debug(
             f"  --exclude {len(exclude_keys)} / {len(x_labels)} keys: {exclude_keys if len(exclude_keys) < 10 else exclude_keys[:5] + ['...']}"
         )
@@ -72,9 +69,13 @@ def plot_cov(
     fig, ax = plt.subplots()
     hist_2d[keys, keys].plot2d(cmap=cmap, cmin=-1, cmax=1, ax=ax)
     _base_fontsize = plt.rcParams["font.size"]
-    from matplotlib.font_manager import font_scalings
+    try:
+        from matplotlib.font_manager import font_scalings
 
-    _base_fontsize = font_scalings.get("small") * _base_fontsize
+        _small_scale = font_scalings.get("small", 0.833)
+    except ImportError:
+        _small_scale = 0.833  # matplotlib's public 'small' relative font-size factor
+    _base_fontsize = _small_scale * _base_fontsize
     _fontsize = max(6, min(_base_fontsize, 24 - 0.25 * len(keys)))
     ax.set_xticklabels(ax.get_xticklabels(), rotation=tick_rotation, horizontalalignment="right", fontsize=_fontsize)
     ax.set_yticklabels(ax.get_yticklabels(), rotation=tick_rotation, horizontalalignment="right", fontsize=_fontsize)
@@ -204,9 +205,11 @@ def main():
 
     setup_logging(verbose=args.verbose, debug=args.debug)
 
-    import os
+    from pathlib import Path
 
-    os.makedirs(args.output, exist_ok=True)
+    output_path = Path(args.output)
+    is_file_target = output_path.suffix in {".png", ".pdf"}
+    (output_path.parent if is_file_target else output_path).mkdir(parents=True, exist_ok=True)
 
     hep.style.use("CMS")
 
@@ -224,15 +227,13 @@ def main():
         )
 
     fig = ax.figure
-    hep.cms.label(ax=ax, data=args.pseudo, year=args.year, label=args.cmslabel, supp=args.pub, com=args.com)
+    hep.cms.label(ax=ax, data=not args.pseudo, year=args.year, label=args.cmslabel, supp=args.pub, com=args.com)
 
-    full_path = args.output if args.output.endswith(".png") or args.output.endswith(".pdf") else None
-    if full_path is None:
-        full_path = os.path.join(args.output, f"cov_{args.fit}._format_")
     formats = ["png", "pdf"] if args.format == "both" else [args.format]
     for fmt in formats:
-        fig.savefig(full_path.replace("_format_", fmt), dpi=args.dpi, bbox_inches="tight")
-        logging.info(f"Saved covariance plot to {full_path.replace('_format_', fmt)}")
+        full_path = output_path if is_file_target else output_path / f"cov_{args.fit}.{fmt}"
+        fig.savefig(full_path, dpi=args.dpi, bbox_inches="tight")
+        logging.info(f"Saved covariance plot to {full_path}")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 import argparse
 import logging
-from pkgutil import iter_modules
+import pprint
+from typing import Any
 
 import hist
+import matplotlib.legend
 import matplotlib.pyplot as plt
 import numpy as np
 import uproot
@@ -22,8 +24,17 @@ cmap10 = [
     "#92dadd",
 ]
 
+# set up pretty printer for logging
+pp = pprint.PrettyPrinter(indent=2, sort_dicts=False)
 
-def str2bool(v):
+
+def log_pretty(obj) -> str:
+    pretty_out = f"{pp.pformat(obj)}"
+    return f"{pretty_out}\n"
+
+
+def str2bool(v: str | bool) -> bool:
+    """Convert string (e.g. 'yes', 'true', '1') to boolean."""
     if isinstance(v, bool):
         return v
     if v.lower() in ("yes", "true", "t", "y", "1"):
@@ -34,7 +45,8 @@ def str2bool(v):
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
-def adjust_lightness(color, amount=0.5):
+def adjust_lightness(color: str, amount: float = 0.5) -> str:
+    """Adjust lightness of a color ( >1 is lighter, <1 is darker)."""
     import colorsys
 
     import matplotlib.colors as mc
@@ -49,11 +61,28 @@ def adjust_lightness(color, amount=0.5):
     return "#{0:02x}{1:02x}{2:02x}".format(*scaled_rgb)
 
 
-def module_exists(module_name):
-    return module_name in (name for loader, name, ispkg in iter_modules())
+def setup_logging(verbose: bool = False, debug: bool = False) -> None:
+    """Configure logging with RichHandler. Shared by CLI entry points."""
+    import click
+    from rich.logging import RichHandler
+
+    log_level = logging.WARNING
+    if verbose:
+        log_level = logging.INFO
+    if debug:
+        log_level = logging.DEBUG
+    for noisy in ["matplotlib", "fsspec", "ROOT", "boost_histogram"]:
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+    logging.basicConfig(
+        level=log_level,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
+    )
 
 
-def clean_yaml(style):
+def clean_yaml(style: dict) -> dict:
+    """Clean and standardize the style dictionary (parse None, fix keys)."""
     for key in style:
         # Clean keys
         for elem in style[key]:
@@ -82,12 +111,14 @@ def clean_yaml(style):
     return style
 
 
-def extract_mergemap(style):
+def extract_mergemap(style: dict) -> dict:
+    """Extract sample merging rules from the style dictionary."""
     compound_keys = [key for key in style if "contains" in style[key] and style[key]["contains"] is not None]
     return {key: style[key]["contains"] for key in compound_keys}
 
 
-def fill_colors(style, cmap=None, no_duplicates=True):
+def fill_colors(style: dict, cmap: list | str | None = None, no_duplicates: bool = True) -> dict:
+    """Assign colors to samples in the style dict using a colormap."""
     if cmap is None:
         cmap = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     taken = [style[key]["color"] for key in style if "color" in style[key] and style[key]["color"] is not None]
@@ -124,7 +155,17 @@ def fill_colors(style, cmap=None, no_duplicates=True):
     return style
 
 
-def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
+def prep_yaml(style: dict) -> dict:
+    """Normalize a raw style dict: clean fields and fill in default colors."""
+    style = clean_yaml(style)
+    style = fill_colors(style, cmap=cmap10)
+    return style
+
+
+def make_style_dict_yaml(
+    fitDiag: uproot.ReadOnlyDirectory, cmap: str = "tab10", sort: bool = True, sort_peaky: bool = False
+) -> dict:
+    """Generate a style dictionary from a fitDiagnostics file."""
     style_base = {
         "data": {"label": "Data", "color": "black", "hatch": None, "yield": 0},
         "total_signal": {
@@ -159,7 +200,7 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
             return 0
         try:
             coef = np.polyfit(x, _h, 1)
-        except:  # noqa
+        except (np.linalg.LinAlgError, ValueError):
             return 0
         poly1d_fn = np.poly1d(coef)
         fy = poly1d_fn(x)
@@ -237,60 +278,45 @@ def make_style_dict_yaml(fitDiag, cmap="tab10", sort=True, sort_peaky=False):
     elif cmap in plt.matplotlib.colormaps:
         colors = plt.matplotlib.colormaps[cmap].resampled(len(keys_sorted))(range(len(keys_sorted)))
     # metbrewer maps
-    elif isinstance(cmap, str) and module_exists("met_brewer"):
-        import met_brewer
-
-        if cmap in met_brewer.MET_PALETTES:
-            colors = met_brewer.met_brew(name=cmap, n=len(keys_sorted), brew_type="discrete")
-        else:
-            colors = None
     else:
-        colors = None
+        try:
+            import met_brewer
+
+            if cmap in met_brewer.MET_PALETTES:
+                colors = met_brewer.met_brew(name=cmap, n=len(keys_sorted), brew_type="discrete")
+            else:
+                colors = None
+        except ImportError:
+            colors = None
     if colors is None:
         colors = cmap10
         if cmap is None:
             logging.warning("No cmap passed, defaulting to CMS-style 10 colors cmap")
         else:
             avail = list(plt.matplotlib.colormaps)
-            has_met_brewer = module_exists("met_brewer")
-            if has_met_brewer:
+            try:
+                import met_brewer
+
                 avail += met_brewer.MET_PALETTES
-            logging.warning(f"cmap `{cmap}` not found. Available colormaps are {avail}.")
-            if not has_met_brewer:
+            except ImportError:
                 logging.warning(
                     "Additional cmap are available from the `met_brewer` package when installed: "
                     "https://github.com/BlakeRMills/MetBrewer"
                 )
+            logging.warning(f"cmap `{cmap}` not found. Available colormaps are {avail}.")
     colors = [tuple(c) if isinstance(c, np.ndarray) else c for c in colors]
-    # style = sort_by_yield(style, reverse=True)
     style = fill_colors(style, cmap=colors, no_duplicates=True)
     return style
 
 
-def sort_by_yield(style, reverse=True):
-    if "yield" not in style["data"]:
-        return style
-    sorted_keys = sorted(style, key=lambda k: style[k]["yield"], reverse=reverse)
-    out = {"data": style["data"]}
-    for k in sorted_keys:
-        if k != "data" and "total" not in k:
-            out[k] = style[k]
-        if "total" in k:
-            out[k] = style[k]
-    for k in out.keys():
-        del out[k]["yield"]
-        del out[k]["sort_score"]
-    return out
-
-
-def prep_yaml(style):
-    style = clean_yaml(style)
-    style = fill_colors(style, cmap=cmap10)
-    return style
-
-
 # Formatting
-def format_legend(ax, ncols=2, handles_labels=None, **kwargs):
+def format_legend(
+    ax: plt.Axes, ncols: int = 2, handles_labels: tuple | None = None, **kwargs
+) -> matplotlib.legend.Legend:
+    """Format the legend to hold huge number of entries.
+
+    Splits the legend into two columns to avoid extending off the plot.
+    """
     if handles_labels is None:
         handles, labels = ax.get_legend_handles_labels()
     else:
@@ -324,19 +350,17 @@ def format_legend(ax, ncols=2, handles_labels=None, **kwargs):
     return leg1
 
 
-def format_categories(cats, n=2):
-    # cat, cat \n cat, cat
-    lab_cats = np.array(["x"] * (2 * len(cats) - 1), dtype="object")
-    lab_cats[0::2] = cats
-    lab_cats[1::2][n - 1 :: n] = "\n"
-    for i in range(len(lab_cats)):
-        if lab_cats[i] == "x":
-            lab_cats[i] = ","
-    return "".join(list(lab_cats))
+def format_categories(cats: list[str], n: int = 2) -> str:
+    """Format category names with line breaks every `n` entries."""
+    lines = []
+    for i in range(0, len(cats), n):
+        lines.append(",".join(cats[i : i + n]))
+    return "\n".join(lines)
 
 
 # fitDiag extraction
-def get_fit_val(fitDiag, val, fittype="fit_s", substitute=1.0):
+def get_fit_val(fitDiag: "Any", val: str, fittype: str = "fit_s", substitute: float = 1.0) -> float:
+    """Extract a float parameter value from the fitDiagnostics file."""
     if fitDiag is None:
         return substitute
     if val in fitDiag.Get(fittype).floatParsFinal().contentsString().split(","):
@@ -346,7 +370,10 @@ def get_fit_val(fitDiag, val, fittype="fit_s", substitute=1.0):
         return substitute
 
 
-def get_fit_unc(fitDiag, val, fittype="fit_s", substitute=(0, 0)):
+def get_fit_unc(
+    fitDiag: "Any", val: str, fittype: str = "fit_s", substitute: tuple[float, float] = (0.0, 0.0)
+) -> tuple[float, float]:
+    """Extract a parameter uncertainty (lo, hi) from the fitDiagnostics file."""
     if fitDiag is None:
         return substitute
     if val in fitDiag.Get(fittype).floatParsFinal().contentsString().split(","):
@@ -361,7 +388,10 @@ def get_fit_unc(fitDiag, val, fittype="fit_s", substitute=(0, 0)):
 
 
 # Object conversion
-def tgasym_to_err(tgasym, restoreNorm=True):
+def tgasym_to_err(
+    tgasym: uproot.model.Model, restoreNorm: bool = True
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Convert TGraphAsymmErrors to numpy arrays (y, bins, ylo, yhi)."""
     x, y = tgasym.values("x"), tgasym.values("y")
     xlo, xhi = tgasym.errors("low", axis="x"), tgasym.errors("high", axis="x")
     ylo, yhi = tgasym.errors("low", axis="y"), tgasym.errors("high", axis="y")
@@ -374,7 +404,8 @@ def tgasym_to_err(tgasym, restoreNorm=True):
     return y, bins, ylo, yhi
 
 
-def tgasym_to_hist(tgasym, restoreNorm=True):
+def tgasym_to_hist(tgasym: uproot.model.Model, restoreNorm: bool = True) -> hist.Hist:
+    """Convert TGraphAsymmErrors to a boost-histogram/hist object."""
     y, bins, ylo, yhi = tgasym_to_err(tgasym, restoreNorm)
     h = hist.new.Var(bins, flow=False).Weight()
     h.view().value = y
@@ -382,7 +413,8 @@ def tgasym_to_hist(tgasym, restoreNorm=True):
     return h
 
 
-def geth(name, shapes_dir, restoreNorm=True):
+def geth(name: str, shapes_dir: uproot.ReadOnlyDirectory, restoreNorm: bool = True) -> hist.Hist:
+    """Retrieve a histogram or TGraph from a ROOT directory as a hist object."""
     if isinstance(shapes_dir[name], uproot.models.TGraph.Model_TGraphAsymmErrors_v3):
         return tgasym_to_hist(shapes_dir[name], restoreNorm=restoreNorm)
     else:
@@ -392,14 +424,21 @@ def geth(name, shapes_dir, restoreNorm=True):
         return h
 
 
-def getha(name, channels, restoreNorm=True):
+def getha(name: str, channels: list[uproot.ReadOnlyDirectory], restoreNorm: bool = True) -> hist.Hist:
+    """Retrieve and sum histograms for a sample across multiple channels."""
     for shapes_dir in channels:
         if name not in shapes_dir:
             logging.debug(f"    Sample: '{name}' not found in channel '{shapes_dir}' and will be skipped.")
     return sum([geth(name, shapes_dir, restoreNorm=restoreNorm) for shapes_dir in channels if name in shapes_dir])
 
 
-def geths(names, channels, restoreNorm=True, style_dict=None):
+def geths(
+    names: list[str],
+    channels: uproot.ReadOnlyDirectory | list[uproot.ReadOnlyDirectory],
+    restoreNorm: bool = True,
+    style_dict: dict | None = None,
+) -> dict[str, hist.Hist]:
+    """Retrieve multiple histograms, optionally sorting them by style_dict order."""
     if style_dict is not None:
         sorted_names = [k for k, v in style_dict.items() if k in names]
         assert len(sorted_names) == len(names), f"Sorting incomplete: {names} -> {sorted_names}"
@@ -410,7 +449,8 @@ def geths(names, channels, restoreNorm=True, style_dict=None):
         return {name: geth(name, channels, restoreNorm=restoreNorm) for name in names}
 
 
-def merge_hists(hist_dict, merge_map):
+def merge_hists(hist_dict: dict[str, hist.Hist], merge_map: dict[str, list[str]]) -> dict[str, hist.Hist]:
+    """Merge histograms according to the map {new_key: [old_keys...]}."""
     for k, v in merge_map.items():
         if k in hist_dict and k != v[0]:
             logging.warning(f"  Mapping `'{k}' : {v}` will replace existing histogram: '{k}'.")
@@ -430,12 +470,24 @@ def merge_hists(hist_dict, merge_map):
 
 
 def _string_to_slice(s: str) -> slice:
+    """Convert string "start:stop:step" to slice object (supports complex for value-based)."""
     parts = s.split(":")
     parts = [complex(p) if p else None for p in parts]
     return slice(*parts)
 
 
 def _ensure_slice_by_ix(s: slice, edges: np.ndarray) -> slice:
-    start = s.start.real if s.start.imag == 0 else np.searchsorted(edges, s.start.imag, side="right") - 1
-    stop = s.stop.real if s.stop.imag == 0 else np.searchsorted(edges, s.stop.imag, side="right")
+    """Convert value-based slice (using imaginary) to index-based slice.
+
+    Convention: 5j means "the bin containing value 5" (lookup by edge).
+    A plain int/float means a direct bin index.
+    """
+    if s.start.imag != 0:
+        start = np.searchsorted(edges, s.start.imag, side="right") - 1
+    else:
+        start = int(s.start.real)
+    if s.stop.imag != 0:
+        stop = np.searchsorted(edges, s.stop.imag, side="right")
+    else:
+        stop = int(s.stop.real)
     return slice(int(start), int(stop), s.step)

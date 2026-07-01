@@ -343,7 +343,7 @@ class TestCLIErrorPaths:
 
     def test_no_matching_cats(self, tmp_path, capsys):
         """CLI should fail when --cats matches no categories."""
-        # This raises an AssertionError in main.py: assert len(channels) != 0
+        # This exits with SystemExit(0) in main.py
         with patch.object(
             sys,
             "argv",
@@ -363,5 +363,5 @@ class TestCLIErrorPaths:
                 "nonexistent_category_xyz",
             ],
         ):
-            with pytest.raises(AssertionError):
+            with pytest.raises(SystemExit):
                 make_plots.main()

@@ -6,13 +6,15 @@ import matplotlib
 
 matplotlib.use("Agg")
 import logging
-import pprint
 from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any
 
 import hist
 import matplotlib.pyplot as plt
 import mplhep as hep
 import numpy as np
+import uproot
 from matplotlib.offsetbox import AnchoredText
 from mplhep.error_estimation import poisson_interval
 from scipy import stats
@@ -31,65 +33,230 @@ from .utils import (  # Hist masking
     geth,
     getha,
     geths,
+    log_pretty,
     merge_hists,
 )
 
 np.seterr(divide="ignore", invalid="ignore")
 
-# set up pretty printer for logging
-pp = pprint.PrettyPrinter(indent=2, sort_dicts=False)
+
+@dataclass
+class PlotConfig:
+    fit_type: str = "prefit"
+    cats: str | list[str] | None = None
+    sigs: list[str] | None = None
+    bkgs: list[str] | None = None
+    onto: str | None = None
+    project: list[str] | None = None
+    project_signal: list[float | int] | None = None
+    blind: bool = False
+    blind_data: str | None = None
+    remove_tiny: bool | float | int | str = False
+    restoreNorm: bool = True
+    rmap: dict | None = None
+    clipx: bool = False
+    cat_info: bool | int | str = 2
+    chi2: bool = False
+    chi2_nocorr: bool = False
+    residuals: bool = False
 
 
-def log_pretty(obj):
-    pretty_out = f"{pp.pformat(obj)}"
+class HistManager:
+    def __init__(self, hist_dict, data):
+        self.hist_dict = hist_dict
+        self._max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()]) if hist_dict else 0
 
-    return f"{pretty_out}\n"
+    def get(self, name, raw=False, global_scale=True, th=0.003):
+        if name not in self.hist_dict:
+            logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
+            _hobj = deepcopy(self.hist_dict[list(self.hist_dict.keys())[0]])
+            _hobj.view().value *= 0
+            _hobj.view().variance *= 0
+            return _hobj
+        _hobj = deepcopy(self.hist_dict[name])
+        if raw:
+            return _hobj
+        if np.any(_hobj.values() < 0):
+            _th = th * np.min(_hobj.values())
+            non_zero_indices = np.where(_hobj.values() < _th)[0]
+        else:
+            _th = th * (np.max(self._max_value_global) if global_scale else np.max(_hobj.values()))
+            non_zero_indices = np.where(_hobj.values() > _th)[0]
+        if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
+            logging.debug(f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}.")
+            _hobj.view().value[: non_zero_indices[0]] = np.nan
+            _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
+            logging.debug(f"  Hist '{name}' had values < '{_th:.3f}'. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}.")
+        return _hobj
+
+
+def _format_chi2_label(chi2_val, nbins, chi2_cov_valid, chi2_nocorr):
+    if chi2_cov_valid and not chi2_nocorr:
+        _chi2_str = r"$\frac{\chi^2}{N_{bins}}$ = "
+    else:
+        _chi2_str = r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = "
+    return _chi2_str + r"$\frac{" + f"{chi2_val:.2f}" + r"}{" + f"{nbins:.0f}" + r"}$"
+
+
+def get_stack_styles(items, style_dict, onto=None):
+    if onto:
+        items = [onto] + items
+    _hatch = [None if k == onto else style_dict[k]["hatch"] for k in items]
+    _facecolor = [
+        "none" if h not in ["none", None] or k == onto else style_dict[k]["color"]
+        for k, h in zip(items, _hatch)
+    ]
+    _edgecolor = [
+        style_dict[k]["color"] if h not in ["none", None] else None
+        for k, h in zip(items, _hatch)
+    ]
+    _linewidth = [2 if k == onto else (0 if h not in ["none", None] else 0) for k, h in zip(items, _hatch)]
+    return _facecolor, _edgecolor, _hatch, _linewidth
+
+
+def compute_residual_stats(resid):
+    _stat_sw, p_value_sw = stats.shapiro(resid)
+    _stat_ks, p_value_ks = stats.kstest(resid, "norm", args=(0, np.std(resid)))
+    return p_value_sw, p_value_ks
+
+
+def add_residual_stats_box(resid_ax, p_value_sw, p_value_ks):
+    anchored_text = AnchoredText(
+        f"SW p-val = {p_value_sw:.2f}\nKS p-val = {p_value_ks:.2f}",
+        loc="upper left",
+        frameon=False,
+        prop=dict(size="xx-small"),
+    )
+    resid_ax.add_artist(anchored_text)
+
+
+def set_xlimits(ax, rax, data, tot_bkg, clipx):
+    if clipx:
+        _h, _bins = data.copy().to_numpy()
+        _h += tot_bkg.to_numpy()[0]
+        if len(_bins) > 2:
+            nonzero_left = _bins[:-1][_h > 0]
+            nonzero_right = _bins[1:][_h > 0]
+            ax.set_xlim(nonzero_left[0], nonzero_right[-1])
+            rax.set_xlim(nonzero_left[0], nonzero_right[-1])
+        else:  # Single bin
+            ax.set_xlim(_bins[0], _bins[-1])
+            rax.set_xlim(_bins[0], _bins[-1])
+    else:
+        ax.set_xlim(data.axes[0].edges[0], data.axes[0].edges[-1])
+
+
+def _draw_signal_strengths(ax, leg, sigs_original, rmap, hist_keys, fitDiag_root, fit_type, style, blind):
+    leg.set_title(title=None, prop={"size": "small"})
+    ax.figure.canvas.draw()
+    mu_strs = []
+    for sig in sigs_original:
+        if rmap is None or sig not in rmap or sig not in hist_keys:
+            continue
+        logging.debug(f"  Reading signal strength for '{sig}' from parameter '{rmap[sig]}'.")
+        _r = get_fit_val(
+            fitDiag_root,
+            rmap[sig],
+            fittype=fit_type,
+            substitute=None,
+        )
+        if _r is None:
+            leg.set_title(title="Postfit", prop={"size": "small"})
+            continue
+        _r_str = rf"{_r:.2f}"
+        _d, _u = get_fit_unc(
+            fitDiag_root,
+            rmap[sig],
+            fittype=fit_type,
+            substitute=(0, 0),
+        )
+        _d_str, _u_str = rf"{_d:.2f}", f"{_u:.2f}"
+        label_clean = style[sig]["label"].replace("$", "")
+        mu_strs.append(rf"$\mu_{{{label_clean}}}$ = ${_r_str}_{{{_d_str}}}^{{{_u_str}}}$")
+
+    if mu_strs and not blind:
+        ax.figure.canvas.draw()
+        bbox = leg.get_window_extent().transformed(ax.transAxes.inverted())
+        x, y = bbox.xmin + bbox.width / 2, bbox.ymin
+        ax.text(
+            x,
+            y,
+            "\n".join(mu_strs),
+            fontsize="x-small",
+            ha="center",
+            va="top",
+            transform=ax.transAxes,
+        )
+        ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
+
+
+def _calc_chi2(channels, restoreNorm, chi2_nocorr):
+    # wrap to avoid global variables
+    _chi2_tot, _chi2_naive_tot, _nbins = 0, 0, 0
+    _chi2_cov_valid = True
+    for channel in channels:
+        data = getha("data", [channel], restoreNorm=restoreNorm)
+        tot = getha("total", [channel], restoreNorm=restoreNorm)
+        cov = geth("total_covar", channel, restoreNorm=False).values()
+        mask = ~np.isclose(data.values(), 0, atol=1e-4)
+        cov = cov[mask, :]
+        cov = cov[:, mask]
+        variances = data.variances()[mask]
+        diff = data.values()[mask] - tot.values()[mask]
+        chi2_naive = np.sum(np.nan_to_num(diff**2 / variances, posinf=0, neginf=0))
+        _chi2_naive_tot += chi2_naive
+        if not chi2_nocorr:
+            try:
+                chi2 = diff @ np.linalg.inv(cov + np.diag(variances)) @ diff
+                _chi2_tot += chi2
+            except np.linalg.LinAlgError:
+                _chi2_cov_valid = False
+                logging.warning("  Covariance matrix is singular. Will report naive chi2.")
+        _nbins += len(diff)
+    logging.debug(f"  Chi2: {_chi2_tot:.2f}")
+    logging.debug(f"  Chi2 (naive): {_chi2_naive_tot:.2f}")
+    logging.debug(f"  Nbins: {_nbins:.0f}")
+    if chi2_nocorr:
+        return _chi2_naive_tot, _nbins, False
+    else:
+        return _chi2_tot, _nbins, _chi2_cov_valid
 
 
 @typechecked
 def plot(
-    fitDiag_uproot,
-    fit_type: str = "prefit",  # 'prefit' | 'fit_s' | 'fit_b'
-    cats: str | list[str] | None = None,
-    # Sample plotting opts
-    sigs: (list[str] | None) = None,  # List of samples considered signals, by default matches to `total_signal`
-    bkgs: (list[str] | None) = None,  # List of samples considered backaground - exclude QCD
-    onto: str | None = None,  # large background to plot others onto typically QCD
-    project: (list[str] | None) = None,  # Project (duplicate) some samples onto the x-axis for readability
-    project_signal: (
-        list[float | int] | None
-    ) = None,  # Plot projected total signal on x-axis, scale by `project_signal`
-    blind: bool = False,  # Blind data
-    blind_data: str
-    | None = None,  # slice in a string form, either by binix `5:10` by value `5j:10j`, as a list 3,4,5,6
-    remove_tiny: (
-        bool | float | int | str
-    ) = False,  # Remove enteries with total yield below treshold eg. {False | 10 | '5%'}
-    # Style opts
-    restoreNorm=True,  # Combine outputs binwnormed results - restores to nominal
-    fitDiag_root=None,  # ROOT fitDiagnostics file to read fit results and display signal strength
-    rmap: dict | None = None,
-    style: dict | None = None,  # Style YAML
-    merge: (dict[str, list] | None) = None,  # {new_key: [old_key1, old_key2]} overwrites settings in style yaml
-    clipx: bool = False,  # Clip edge bins when empty
-    cat_info: (
-        bool | int | str
-    ) = 2,  # Number of category names to display per line. Set ``False`` to disable cat info. Set to str to display custom text.
-    chi2: bool = False,  # Calculate and display chi2 of data to total shapes
-    chi2_nocorr: bool = False,  # Calculate and display chi2 of data to total shape
-    residuals: bool = False,  # Calculated and display chi2 of data to total shapes
-) -> tuple:
-    ####
-    # import inspect
-    # frame = inspect.currentframe()
-    # # Get argument values from the frame
-    # args, _, _, values = inspect.getargvalues(frame)
-    # # Print all arguments with names
-    # for arg in args:
-    #     print(f"{arg} = {values[arg]}")
-    # return
-    ####
-    # Prep
+    fitDiag_uproot: uproot.ReadOnlyDirectory,
+    config: PlotConfig | None = None,
+    style: dict | None = None,
+    merge: dict[str, list] | None = None,
+    fitDiag_root: Any | None = None,
+    **kwargs,
+) -> tuple[plt.Figure | None, tuple[plt.Axes | None, plt.Axes | None]]:
+    """
+    Create a PostFit/PreFit plot from a Combine fitDiagnostics file.
+    """
+    if config is None:
+        config = PlotConfig(**kwargs)
+
+    fit_type = config.fit_type
+    cats = config.cats
+    sigs = config.sigs
+    bkgs = config.bkgs
+    onto = config.onto
+    project = config.project
+    project_signal = config.project_signal
+    blind = config.blind
+    blind_data = config.blind_data
+    remove_tiny = config.remove_tiny
+    restoreNorm = config.restoreNorm
+    rmap = config.rmap
+    clipx = config.clipx
+    cat_info = config.cat_info
+    chi2 = config.chi2
+    chi2_nocorr = config.chi2_nocorr
+    residuals = config.residuals
+
+
+    # ── Preparation ─────────────────────────────────────────────
     style = style.copy()
     fit_shapes_name = f"shapes_{fit_type}"
     if cats is None:
@@ -108,7 +275,7 @@ def plot(
         bkgs = []
     if project is None:
         project = []
-    # Fetch hists
+    # ── Fetch histograms ────────────────────────────────────────
     channels = [fitDiag_uproot[f"{fit_shapes_name}/{cat}"] for cat in cats]
     if len(channels) == 0:
         return None, (None, None)
@@ -129,51 +296,17 @@ def plot(
     # Prepare merges
     hist_dict = merge_hists(hist_dict, merge)
     hist_keys = list(hist_dict.keys())
-    _merged_away = []
-    for k, v in merge.items():
-        _merged_away += v
+    _merged_away = {name for names in merge.values() for name in names}
     # Check if all available
     for key in sigs + bkgs + project:
         if key not in hist_dict.keys():
             logging.warning(f"  Hist '{key}' is missing and will be ignored. Available keys are: {hist_keys}")
 
     # Soft-fail on missing hist
-    def hist_dict_fcn(name, raw=False, global_scale=True, th=0.003):
-        """
-        raw: return raw hist without any modifications
-        global_scale: when true will clip small values based on global max, else based on hist max
-                set to False when plotting eg. signal in ratio
-        """
-        _max_value_global = np.max([np.max(h.values()) for h in hist_dict.values()])
-        if name not in hist_dict:
-            logging.warning(f"  Hist '{name}' is missing. Will be replaced with zeros.")
-            _hobj = deepcopy(hist_dict[list(hist_dict.keys())[0]])
-            _hobj.view().value *= 0
-            _hobj.view().variance *= 0
-            return _hobj
-        _hobj = deepcopy(hist_dict[name])
-        if raw:
-            return _hobj
-        # Convert zeros to nans for plotting (lw>0)
-        if np.any(_hobj.values() < 0):  # negative hists
-            _th = th * np.min(_hobj.values())
-            non_zero_indices = np.where(_hobj.values() < _th)[0]
-        else:  # positive hists
-            _th = th * (np.max(_max_value_global) if global_scale else np.max(_hobj.values()))
-            non_zero_indices = np.where(_hobj.values() > _th)[0]
-        if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
-            logging.debug(
-                f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
-            )
-            _hobj.view().value[: non_zero_indices[0]] = np.nan
-            _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
-            # if len(non_zero_indices) != len(_hobj.values()):
-            logging.debug(
-                f"  Hist '{name}' had values < '{_th:.3f}'. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
-            )
-        return _hobj
+    hm = HistManager(hist_dict, data)
+    get_hist = hm.get
 
-    # Remove tiny
+    # ── Remove tiny contributions ───────────────────────────────
     if remove_tiny:
         if isinstance(remove_tiny, str) and remove_tiny.endswith("%"):
             _th = float(remove_tiny[:-1]) * 0.005 * np.sum(data.values())
@@ -186,12 +319,13 @@ def plot(
         for key in hist_keys:
             if key in bkgs + sigs + project:
                 continue
-            if np.sum(hist_dict_fcn(key).values()) < _th:
+            if np.sum(get_hist(key).values()) < _th:
                 logging.info(f"  Skipping hist {key}: because its yield is below threshold.")
                 hist_keys.remove(key)
 
-    # Fetch keys
-    if "total_signal" not in list(set(sum([c.keys() for c in channels], []))):  # no signal in CRs
+    # ── Resolve signals & backgrounds ───────────────────────────
+    all_channel_keys = set().union(*(c.keys() for c in channels))
+    if "total_signal" not in all_channel_keys:  # no signal in CRs
         default_signal = []
     else:
         default_signal = [
@@ -230,10 +364,10 @@ def plot(
             if key not in hist_keys:
                 logging.warning(f"  Hist '{key}' is not available for '{fit_type}' in the input file.")
                 continue
-            if np.any(hist_dict_fcn(key, raw=True).values() < 0):
+            if np.any(get_hist(key, raw=True).values() < 0):
                 _excluded.append(key)
                 logging.warning(f"  Hist '{key}' has negative values and will not be show in the stack")
-                logging.debug(f"  Hist {key}: {hist_dict_fcn(key).values()}")
+                logging.debug(f"  Hist {key}: {get_hist(key).values()}")
             else:
                 list_out.append(key)
     sigs = _sigs
@@ -260,14 +394,13 @@ def plot(
     style = fill_colors(style, cmap=cmap10, no_duplicates=False)
     logging.debug(f"  Style: \n{log_pretty(style)}")
 
-    ###############
-    # Plotting main
+    # ── Main panel: stack plot ──────────────────────────────────
     logging.debug("  DEBUG: Main plotting")
     fig, (ax, rax) = plt.subplots(2, 1, gridspec_kw={"height_ratios": (3, 1)}, sharex=True)
     plt.subplots_adjust(hspace=0)
     if onto is None:
         hep.histplot(
-            [hist_dict_fcn(k) for k in bkgs + sigs],
+            [get_hist(k) for k in bkgs + sigs],
             ax=ax,
             label=bkgs + sigs,
             stack=True,
@@ -277,7 +410,7 @@ def plot(
     else:
         if onto in hist_dict.keys():
             hep.histplot(
-                hist_dict_fcn(onto),
+                get_hist(onto),
                 ax=ax,
                 label=onto,
                 yerr=False,  # facecolor='none',
@@ -287,19 +420,11 @@ def plot(
                 lw=2,
                 zorder=2,
             )
-        _hatch = [None, *[style[k]["hatch"] for k in bkgs + sigs]]
-        _edgecolor = [
-            style[k]["color"] if h not in ["none", None] else None for k, h in zip([onto] + bkgs + sigs, _hatch)
-        ]
-        _facecolor = [
-            "none" if h not in ["none", None] or k == onto else style[k]["color"]
-            for k, h in zip([onto] + bkgs + sigs, _hatch)
-        ]
-        _linewidth = [2] + [0 if h not in ["none", None] else 0 for k, h in zip(bkgs + sigs, _hatch[1:])]
+        _facecolor, _edgecolor, _hatch, _linewidth = get_stack_styles(bkgs + sigs, style, onto=onto)
         hep.histplot(
             [
-                hist_dict_fcn(onto),
-                *[hist_dict_fcn(k, global_scale=False, th=0.02) for k in bkgs + sigs],
+                get_hist(onto),
+                *[get_hist(k, global_scale=False, th=0.02) for k in bkgs + sigs],
             ],
             ax=ax,
             label=["_", *(bkgs + sigs)],
@@ -333,7 +458,7 @@ def plot(
     if len(project) != 0:
         logging.info(f"  Projecting on x-axis: {','.join(project)}")
         hep.histplot(
-            [hist_dict_fcn(k) for k in project],
+            [get_hist(k) for k in project],
             ax=ax,
             facecolor=[style[k]["color"] for k in project],
             stack=True,
@@ -372,7 +497,7 @@ def plot(
         for j, sig in enumerate(sigs_original):
             if sig_dicts[sig] == 0 or sig not in hist_keys:
                 continue
-            _scaled_sig = hist_dict_fcn(sig, global_scale=False, th=0.05) * sig_dicts[sig] / _rs[sig]
+            _scaled_sig = get_hist(sig, global_scale=False, th=0.05) * sig_dicts[sig] / _rs[sig]
             _p_label = style[sig]["label"] if sig_dicts[sig] == 1 else f"{style[sig]['label']} x {sig_dicts[sig]:.0f}"
             hep.histplot(
                 _scaled_sig,
@@ -386,12 +511,11 @@ def plot(
                 lw=2,
             )
 
+    # ── Ratio panel ─────────────────────────────────────────────
     logging.debug("  DEBUG: Ratios")
-    #########
-    # Subplot/ratio
     rh_unc = np.zeros_like(data.values())
+    rh = None  # set below when data is visible
     if not blind:
-        # rh = (data.values() - tot_bkg.values()) / np.sqrt(data.variances())
         rh = data.values() - tot_bkg.values()
         _lo, _hi = np.abs(poisson_interval(data.values(), data.variances()) - data.values())
         rh_unc[rh < 0] = _hi[rh < 0]
@@ -413,24 +537,21 @@ def plot(
         )
     # Signal plotting
     # Plot total signal if sum of matched signals doesn't match total, emit warning
-    if not np.round(np.sum([hist_dict_fcn(sig, raw=True).values() for sig in sigs_original])) == np.round(
-        np.sum(hist_dict_fcn("total_signal", raw=True).values())
+    if not np.round(np.sum([get_hist(sig, raw=True).values() for sig in sigs_original])) == np.round(
+        np.sum(get_hist("total_signal", raw=True).values())
     ):
         logging.warning(
             f"  Sum of specified signals: {sigs_original} does not match 'total_signal'. Will plot 'total_signal' in the ratio instead."
         )
         sigs_original = ["total_signal"]
-    if len(sigs_original) > 0 and np.any([sig in hist_keys for sig in sigs_original]):  # No signals in CRs
+    if sigs_original and any(sig in hist_keys for sig in sigs_original):  # No signals in CRs
         # Plotted signals should match total_signal, replace if not
-        _hatch = [style[sig]["hatch"] for sig in sigs_original]
-        _edgecolor = [style[k]["color"] if h not in ["none", None] else "none" for k, h in zip(sigs_original, _hatch)]
-        _facecolor = ["none" if h not in ["none", None] else style[k]["color"] for k, h in zip(sigs_original, _hatch)]
-        _lw = [0 if h not in ["none", None] else 0 for h in _hatch]
+        _facecolor, _edgecolor, _hatch, _lw = get_stack_styles(sigs_original, style)
         _rh_unc = rh_unc if not blind else np.ones_like(rh_unc)
         hep.histplot(
-            [hist_dict_fcn(sig, global_scale=False, th=0.05).values() / _rh_unc for sig in sigs_original],
+            [get_hist(sig, global_scale=False, th=0.05).values() / _rh_unc for sig in sigs_original],
             ax=rax,
-            bins=hist_dict_fcn(sigs_original[0], global_scale=False, th=0.05).axes[0].edges,
+            bins=get_hist(sigs_original[0], global_scale=False, th=0.05).axes[0].edges,
             facecolor=_facecolor,
             edgecolor=_edgecolor,
             hatch=_hatch,
@@ -452,7 +573,7 @@ def plot(
     yerr = yerr_nom.copy()
     logging.debug(f"  yerr (raw): {yerr}.")
     yerr[~np.isfinite(yerr_nom)] = 0
-    if "rh" in locals():
+    if rh is not None:
         err_th = np.max([7, 1.5 * np.max(abs(np.r_[0.01, rh[np.isfinite(rh)]]))])
     else:
         err_th = 7
@@ -472,25 +593,11 @@ def plot(
             f"  Bkg. Unc. in {np.sum(~good_yerr_mask)} bins is very large ( > {err_th}) this may be pathological. Full uncertainty is: {yerr_nom}"
         )
 
+    # ── Styling & axis limits ───────────────────────────────────
     logging.debug("  DEBUG: Styling")
-    #########
-    # Styling
-    ax.legend(ncol=2)
 
     # Axis limits
-    if clipx:
-        _h, _bins = data.copy().to_numpy()
-        _h += tot_bkg.to_numpy()[0]
-        if len(_bins) > 2:
-            nonzero_left = _bins[:-1][_h > 0]
-            nonzero_right = _bins[1:][_h > 0]
-            ax.set_xlim(nonzero_left[0], nonzero_right[-1])
-            rax.set_xlim(nonzero_left[0], nonzero_right[-1])
-        else:  # Single bin
-            ax.set_xlim(_bins[0], _bins[-1])
-            rax.set_xlim(_bins[0], _bins[-1])
-    else:
-        ax.set_xlim(data.axes[0].edges[0], data.axes[0].edges[-1])
+    set_xlimits(ax, rax, data, tot_bkg, clipx)
 
     # Axis labels
     ax.set_xlabel(None)
@@ -506,17 +613,17 @@ def plot(
     else:
         ax.set_ylabel("Events / GeV")
 
-    # Ratio
+    # Ratio limits
     limlo, limhi = rax.get_ylim()
-    if "rh" in locals():
+    if rh is not None:
         rax.set_ylim(np.nanmin([-2, np.nanmin(rh) * 1.5 - 1]), np.nanmax([2, 1 + np.nanmax(rh) * 1.5]))
     else:
         rax.set_ylim(np.min([-2, limlo]), np.max([2, limhi * 1.8]))
     rax.axhline(0, color="gray", ls="--")
     rax.set_ylabel(r"$\frac{Data-Bkg}{\sigma_{Data}}$", y=0.5)
 
+    # ── Legend formatting ───────────────────────────────────────
     logging.debug("  DEBUG: Legend format")
-    # Reformatting legend
     existing_keys = ax.get_legend_handles_labels()[-1]
     for key in existing_keys:
         if key not in style.keys():
@@ -545,52 +652,10 @@ def plot(
             leg.set_title(title="Postfit", prop={"size": "small"})
         else:
             # Write signal strengths
-            leg.set_title(title=None, prop={"size": "small"})
-            fig.canvas.draw()
-            mu_strs = []
-            for sig in sigs_original:
-                if rmap is None or sig not in rmap or sig not in hist_keys:
-                    continue
-                logging.debug(f"  Reading signal strength for '{sig}' from parameter '{rmap[sig]}'.")
-                _r = get_fit_val(
-                    fitDiag_root,
-                    rmap[sig],
-                    fittype=fit_type,
-                    substitute=None,
-                )
-                if _r is None:
-                    leg.set_title(title="Postfit", prop={"size": "small"})
-                    continue
-                _r = rf"{_r:.2f}"
-                _d, _u = get_fit_unc(
-                    fitDiag_root,
-                    rmap[sig],
-                    fittype=fit_type,
-                    substitute=(0, 0),
-                )
-                _d, _u = rf"{_d:.2f}", f"{_u:.2f}"
-                mu_strs.append(
-                    r"$\mu_{%s}$ = " % style[sig]["label"].replace("$", "") + r"${%s}_{%s}^{%s}$" % (_r, _d, _u)
-                )
-            if len(mu_strs) > 0 and not blind:
-                fig.canvas.draw()
-                bbox = leg.get_window_extent().transformed(ax.transAxes.inverted())
-                x, y = bbox.xmin + bbox.width / 2, bbox.ymin
-                ax.text(
-                    x,
-                    y,
-                    # "  ".join(mu_strs),
-                    "\n".join(mu_strs),
-                    fontsize="x-small",
-                    ha="center",
-                    va="top",
-                    transform=ax.transAxes,
-                )
-                ax.set_ylim(None, ax.get_ylim()[-1] * 1.05)
+            _draw_signal_strengths(ax, leg, sigs_original, rmap, hist_keys, fitDiag_root, fit_type, style, blind)
 
     # Ratio legend
     ncol = 3 if not residuals else 1
-    rax.legend(ncol=ncol)  # dummy legend
     handles, labels = ax.get_legend_handles_labels()
     rax.legend(
         loc="upper right",
@@ -619,53 +684,14 @@ def plot(
         ax.add_artist(at)
         hep.yscale_anchored_text(ax, soft_fail=True)
 
-    # Fit info
     if (chi2 or chi2_nocorr) and not blind:
+        chi2_val, _nbins, _chi2_cov_valid = _calc_chi2(channels, restoreNorm, chi2_nocorr)
 
-        def chi2_calc(chi2_nocorr):
-            # wrap to avoid global variables
-            _chi2_tot, _chi2_naive_tot, _nbins = 0, 0, 0
-            _chi2_cov_valid = True
-            for channel in channels:
-                data = getha("data", [channel], restoreNorm=restoreNorm)
-                tot = getha("total", [channel], restoreNorm=restoreNorm)
-                cov = geth("total_covar", channel, restoreNorm=False).values()
-                mask = ~np.isclose(data.values(), 0, atol=1e-4)
-                cov = cov[mask, :]
-                cov = cov[:, mask]
-                variances = data.variances()[mask]
-                diff = data.values()[mask] - tot.values()[mask]
-                chi2_naive = np.sum(np.nan_to_num(diff**2 / variances, posinf=0, neginf=0))
-                _chi2_naive_tot += chi2_naive
-                if not chi2_nocorr:
-                    try:
-                        chi2 = diff @ np.linalg.inv(cov + np.diag(variances)) @ diff
-                        _chi2_tot += chi2
-                    except np.linalg.LinAlgError:
-                        _chi2_cov_valid = False
-                        logging.warning("  Covariance matrix is singular. Will report naive chi2.")
-                _nbins += len(diff)
-            logging.debug(f"  Chi2 ({cats[0]}): {_chi2_tot:.2f}")
-            logging.debug(f"  Chi2 (naive) ({cats[0]}): {_chi2_naive_tot:.2f}")
-            logging.debug(f"  Nbins ({cats[0]}): {_nbins:.0f}")
-            if chi2_nocorr:
-                return _chi2_naive_tot, _nbins, False
-            else:
-                return _chi2_tot, _nbins, _chi2_cov_valid
-
-        chi2_val, _nbins, _chi2_cov_valid = chi2_calc(chi2_nocorr)
-
-        if _chi2_cov_valid and not chi2_nocorr:
-            _chi2_str = r"$\frac{\chi^2}{N_{bins}}$ = "
-        else:
-            _chi2_str = r"$\frac{\chi^2_{no~corr}}{N_{bins}}$ = "
+        chi2_label = _format_chi2_label(chi2_val, _nbins, _chi2_cov_valid, chi2_nocorr)
 
         # Should be just a bit higher than 'saturated'
         at = AnchoredText(
-            _chi2_str + r"$\frac{" + f"{chi2_val:.2f}" + r"}{" + f"{_nbins:.0f}" + r"}$",
-            # r"}{N_{bins}}$ = "
-            # + f"{chi2_val:.2f}/"
-            # + f"{_nbins:.0f}",
+            chi2_label,
             loc="upper left",  # pad=0.8,
             prop=dict(size="xx-small", ha="center"),
             frameon=False,
@@ -704,16 +730,8 @@ def plot(
             alpha=0.4,
         )
         resid_ax.set_xlabel("Residuals", ha="right", x=1)
-        _stat, p_value = stats.shapiro(resid)
-        _stat, p_value_ks = stats.kstest(resid, "norm", args=(0, np.std(resid)))
-
-        anchored_text = AnchoredText(
-            f"SW p-val = {p_value:.2f}\nKS p-val = {p_value_ks:.2f}",
-            loc="upper left",
-            frameon=False,
-            prop=dict(size="xx-small"),
-        )
-        resid_ax.add_artist(anchored_text)
+        p_value_sw, p_value_ks = compute_residual_stats(resid)
+        add_residual_stats_box(resid_ax, p_value_sw, p_value_ks)
 
         resid_ax.set_ylim(
             resid_ax.get_ylim()[0] - ((resid_ax.get_ylim()[1] - (resid_ax.get_ylim()[0])) / 4),

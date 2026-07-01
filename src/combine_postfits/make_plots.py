@@ -1,25 +1,23 @@
+import argparse
 import fnmatch
 import importlib.util
 import logging
-import os
+import sys
 import time
-from collections import defaultdict
+from dataclasses import dataclass
 from multiprocessing import Process, Semaphore
+from pathlib import Path
+from typing import Any, Iterator
 
 import matplotlib
+import mplhep as hep
 import numpy as np
 import uproot
 import yaml
-
-matplotlib.use("Agg")
-import argparse
-
-import mplhep as hep
+from rich.prompt import Confirm
 from rich_argparse_plus import RichHelpFormatterPlus
 
 RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
-import click
-from rich.logging import RichHandler
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -29,10 +27,10 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-from rich.prompt import Confirm
 from rich.traceback import install
 
 from combine_postfits import plot_postfits, utils
+from combine_postfits.utils import str2bool
 
 install(show_locals=False)
 
@@ -44,7 +42,8 @@ if ROOT_AVAILABLE:
 hep.style.use("CMS")
 
 
-def time_check(progress, procs, limit=5):
+def time_check(progress: Progress, procs: list[Process], limit: int = 5) -> None:
+    """Monitor plotting processes and terminate if they exceed the time limit."""
     if progress.tasks[0].elapsed // 60 >= limit:
         logging.error(
             f"Plotting taking longer than {limit} minutes. Likely and issue with file opening or too many figures. Try rerunning or running with `--p 0`."
@@ -58,35 +57,232 @@ def time_check(progress, procs, limit=5):
         sys.exit()
 
 
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
 
-
-def sci_notation(number, sig_fig=1, no_zero=False):
-    ret_string = "{0:.{1:d}e}".format(number, sig_fig)
+def sci_notation(number: float, sig_fig: int = 1, no_zero: bool = False) -> str:
+    """Format a number in scientific notation for LaTeX (e.g. 1.2 x 10^{3})."""
+    ret_string = f"{number:.{sig_fig}e}"
     a, b = ret_string.split("e")
     b = int(b)
     if float(a) == 0:
-        if no_zero:
-            return r"\ "
-        else:
-            return "0"
+        return r"\ " if no_zero else "0"
     elif float(a) == 1:
-        return "10^{" + str(b) + "}"
+        return f"10^{{{b}}}"
     else:
-        return a + r"\,x\," + "10^{" + str(b) + "}"
+        return rf"{a}\,x\,10^{{{b}}}"
 
 
-def get_digits(number):
+def get_digits(number: float) -> tuple[int, int]:
+    """Return the number of digits before and after the decimal point."""
     before, _, after = np.round(number, 10).astype(str).partition(".")
     return len(before), len(after)
+
+
+@dataclass
+class PlotTask:
+    """Encapsulates all parameters needed for a single plot job."""
+
+    fittype: str
+    channels: list[str]
+    blind: bool
+    savename: str
+    label: str | None
+    blind_range: str | None
+
+
+def generate_plot_tasks(
+    args: argparse.Namespace, fit_types: list[str], fd: uproot.ReadOnlyDirectory
+) -> Iterator[PlotTask]:
+    """Generate PlotTask objects based on CLI arguments and available channels."""
+    # 1. Parse Blinding Patterns
+    if args.blind is not None:
+        blind_cat_patterns = args.blind.split(",") if "," in args.blind else [args.blind]
+    else:
+        blind_cat_patterns = []
+    logging.debug(f"Blind categories matching: {blind_cat_patterns}")
+
+    # 2. Parse Blind Data Ranges
+    blind_mapping = {}
+    if args.blind_data is not None:
+        for _mapping in args.blind_data.split(";"):
+            cat_pattern, slice_string = _mapping.split(":", 1)
+            blind_mapping[cat_pattern] = slice_string
+        logging.debug(f"Blind data mapping:\n{blind_mapping}")
+
+    # 3. Parse rmap (signal mapping)
+    # (Note: rmap validation logic remains in main() or can be moved here if it affects task generation.
+    # Currently it mostly affects plotting, so we leave it, but args.rmap is used for validation.)
+
+    for fit_type in fit_types:
+        # Get available channels for this fit type
+        # Shapes are like "shapes_prefit/channel/sample", we want "channel"
+        # We filter out typical ROOT subdirectories or non-channel keys if necessary
+        available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
+        logging.debug(f"Available '{fit_type}' channels: {available_channels}")
+
+        # Resolve which channels are blinded
+        blind_cats = set()
+        for pattern in blind_cat_patterns:
+            blind_cats.update(fnmatch.filter(available_channels, pattern))
+            # Also check against merged category names if --cats is used
+            if args.cats:
+                cat_names = [catmap.split(":")[0] for catmap in args.cats.split(";")]
+                blind_cats.update(fnmatch.filter(cat_names, pattern))
+        logging.debug(f"Categories to blind: {blind_cats}")
+
+        # Resolve blind ranges per channel
+        # We flatten the mapping: {channel: "range_string"}
+        blind_mapping_flattened = {}
+        if args.blind_data:
+            target_channels = (
+                [catmap.split(":")[0] for catmap in args.cats.split(";")] if args.cats else available_channels
+            )
+            for pattern, slice_string in blind_mapping.items():
+                for channel in fnmatch.filter(target_channels, pattern):
+                    blind_mapping_flattened[channel] = slice_string
+            logging.debug(f"Blind mapping flattened: {blind_mapping_flattened}")
+
+        # Generate Tasks
+        # Case A: Implicitly plot all available channels
+        if args.cats is None:
+            logging.debug(f"Plotting all channels: {available_channels}")
+            for channel in available_channels:
+                yield PlotTask(
+                    fittype=fit_type,
+                    channels=[channel],
+                    blind=(channel in blind_cats),
+                    savename=channel,
+                    label=None,  # Will be autofilled later or used as is
+                    blind_range=blind_mapping_flattened.get(channel),
+                )
+
+        # Case B: Standard list of categories (comma-sep) or Merged categories (colon-sep)
+        else:
+            # We enforce semicolon separator for clarity in complex args, but logic follows original
+            # "cat1,cat2" -> list of separate plots
+            # "merged:cat1,cat2" -> one plot summing cat1 and cat2
+            if ":" in args.cats:
+                # Mapping mode: "name:cat1,cat2; name2:cat3"
+                for cat_group in args.cats.split(";"):
+                    if ":" not in cat_group:
+                        logging.warning(
+                            f"Skipping malformed category mapping '{cat_group}'. Expected format 'name:cat1,cat2'"
+                        )
+                        continue
+                    mcat, pat_list = cat_group.split(":", 1)
+                    # Resolve wildcards in the pattern list
+                    resolved_cats = []
+                    for pat in pat_list.split(","):
+                        resolved_cats.extend(fnmatch.filter(available_channels, pat))
+
+                    if not resolved_cats:
+                        logging.warning(f"No channels found matching '{pat_list}' for group '{mcat}'")
+                        continue
+
+                    yield PlotTask(
+                        fittype=fit_type,
+                        channels=resolved_cats,
+                        blind=(mcat in blind_cats),
+                        savename=mcat,
+                        label=args.catlabels if args.catlabels and ";" not in args.catlabels else mcat,
+                        blind_range=blind_mapping_flattened.get(mcat),
+                    )
+            else:
+                # List mode: "cat1,cat2,cat3" -> 3 plots
+                for pat in args.cats.split(","):
+                    resolved_cats = fnmatch.filter(available_channels, pat)
+                    for channel in resolved_cats:
+                        yield PlotTask(
+                            fittype=fit_type,
+                            channels=[channel],
+                            blind=(channel in blind_cats),
+                            savename=channel,
+                            label=None,
+                            blind_range=blind_mapping_flattened.get(channel),
+                        )
+
+
+def process_plot(
+    semaphore,
+    fd: uproot.ReadOnlyDirectory,
+    rfd: Any,
+    task: PlotTask,
+    style: dict,
+    rmap: dict,
+    args: argparse.Namespace,
+    out_dir: Path,
+    format_list: list[str],
+) -> None:
+    """Process a single plot task (worker function)."""
+    try:
+        config = plot_postfits.PlotConfig(
+            fit_type=task.fittype,
+            cats=task.channels,
+            sigs=args.sigs.split(",") if args.sigs else None,
+            bkgs=args.bkgs.split(",") if args.bkgs else None,
+            onto=args.onto,
+            project_signal=([float(v) for v in args.project_signals.split(",")] if args.project_signals else None),
+            blind=task.blind,
+            blind_data=task.blind_range,
+            restoreNorm=True,
+            rmap=rmap,
+            clipx=args.clipx,
+            cat_info=task.label,
+            chi2=args.chi2,
+            chi2_nocorr=args.chi2_nocorr,
+            residuals=args.residuals,
+        )
+        fig, (ax, rax) = plot_postfits.plot(
+            fd,
+            config,
+            style=style,
+            fitDiag_root=rfd,
+        )
+        if fig is None:
+            return None
+        # Styling
+        if args.xlabel is not None:
+            rax.set_xlabel(args.xlabel)
+        if args.ylabel is not None:
+            ax.set_ylabel(args.ylabel)
+        hep.cms.label(
+            args.cmslabel,
+            data=not args.pseudo,
+            ax=ax,
+            lumi=args.lumi,
+            lumi_format="{:0.0f}",
+            com=args.com,
+            supp=args.pub,
+            year=args.year,
+        )
+        # ax.semilogy()
+        # ax.set_ylim(10, None)
+
+        # Sci notat
+        leading_dig_max, decimal_dig_max = 0, 0
+        for tick in ax.get_yticks():
+            leading_dig_max = max(leading_dig_max, get_digits(tick)[0])
+            decimal_dig_max = max(decimal_dig_max, get_digits(tick)[1])
+        if (leading_dig_max > 3) or (decimal_dig_max > 3):
+
+            def g(x, pos):
+                return rf"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
+
+            ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(g))
+
+        # Save
+        for fmt in format_list:
+            out_path = out_dir / task.fittype / f"{task.savename}_{task.fittype}.{fmt}"
+            logging.debug(f"Saving: '{out_path}'")
+            fig.savefig(
+                out_path,
+                format=fmt,
+                dpi=args.dpi,
+                bbox_inches="tight",
+                # transparent=True,
+            )
+    finally:
+        if semaphore is not None:
+            semaphore.release()
 
 
 def main():
@@ -352,23 +548,11 @@ def main():
 
     args = parser.parse_args()
 
-    os.makedirs(args.output, exist_ok=True)
+    out_dir = Path(args.output)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # Arg processing
-    log_level = logging.WARNING
-    if args.verbose:
-        log_level = logging.INFO
-    if args.debug:
-        log_level = logging.DEBUG
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
-    logging.getLogger("fsspec").setLevel(logging.WARNING)
-    logging.getLogger("ROOT").setLevel(logging.WARNING)
-    logging.basicConfig(
-        level=log_level,
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
-    )
+    utils.setup_logging(verbose=args.verbose, debug=args.debug)
     if not args.pseudo and not args.unblind and args.blind is None and args.blind_data is None:
         unblind_conf = Confirm.ask(
             "Option `--blind` or `--blind-data` is not set, while plotting with `--data`. "
@@ -381,7 +565,7 @@ def main():
     else:
         fit_types = [args.fit]
     for fit in fit_types:
-        os.makedirs(f"{args.output}/{fit}", exist_ok=True)
+        (out_dir / fit).mkdir(parents=True, exist_ok=True)
     if args.format == "both":
         format = ["png", "pdf"]
     else:
@@ -394,329 +578,218 @@ def main():
         rfd = r.TFile.Open(args.input)
     else:
         rfd = None
-    if args.style is not None:
-        with open(args.style, "r") as stream:
-            style = yaml.safe_load(stream)
-    else:
-        style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
-        logging.warning(
-            "No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
-            "The `plot` function will respect the order of samples in the style yaml unless overwritten. "
-            "\nTo pass LaTeX expressions to 'label' use single quotes eg. '$H_{125}(\\tau\\bar{\\tau})$'"
-        )
-        with open("sty.yml", "w") as outfile:
-            yaml.dump(style, outfile, default_flow_style=False, sort_keys=False)
 
-    if args.pseudo and args.toys:
-        style["data"]["label"] = "Toys"
-    elif args.pseudo and not args.toys:
-        style["data"]["label"] = "MC"
-    else:
-        style["data"]["label"] = "Data"
-
-    if args.blind is not None:
-        blind_cat_patterns = args.blind.split(",") if "," in args.blind else [args.blind]
-    else:
-        blind_cat_patterns = []
-    logging.debug(f"Blind categories matching: {blind_cat_patterns}")
-
-    if args.blind_data is not None:
-        blind_mapping = {}
-        for _mapping in args.blind_data.split(";"):
-            cat_pattern, slice_string = _mapping.split(":", 1)
-            blind_mapping[cat_pattern] = slice_string
-        logging.debug(f"Blind data mapping:\n{blind_mapping}")
-    else:
-        blind_mapping = None
-
-    # Parse rmap
-    if args.rmap is not None:
-        kvs = args.rmap.split(",")
-        rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
-        logging.debug(f"Signal-to-POI mapping:\n{rmap}")
-    else:
-        rmap = None
-    if args.sigs is not None:
-        _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
-        if len(_unset_sigs) > 0:
+    try:
+        if args.style is not None:
+            with open(args.style, "r") as stream:
+                style = yaml.safe_load(stream)
+        else:
+            style = utils.make_style_dict_yaml(fd, cmap=args.cmap, sort=True, sort_peaky=True)
             logging.warning(
-                f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
+                "No `--style sty.yml` file provided, will generate an automatic style yaml and store it as `sty.yml`. "
+                "The `plot` function will respect the order of samples in the style yaml unless overwritten. "
+                "\nTo pass LaTeX expressions to 'label' use single quotes eg. '$H_{125}(\\tau\\bar{\\tau})$'"
             )
+            with open("sty.yml", "w") as outfile:
+                yaml.dump(style, outfile, default_flow_style=False, sort_keys=False)
 
-    # Get types/cats/blinds unwrapped
-    all_channels = []
-    all_blinds = []  # blind category
-    all_types = []
-    all_savenames = []
-    all_labels = []
-    confirmed_overlap = False  # Flag to track if user has already confirmed overlaps
-    for fit_type in fit_types:
-        # all channels
-        available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
-        logging.debug(f"Available '{fit_type}' channels: {available_channels}")
-        blinded_channels = []
-        for pattern in blind_cat_patterns:
-            blinded_channels.extend(fnmatch.filter(available_channels, pattern))
-            blinded_channels.extend(
-                fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern)
-            )  # allow merged cats
-        blind_cats = list(set(blinded_channels))
-        logging.debug(f"Categories to blind: {blind_cats}")
-        if blind_mapping is not None:
-            blind_mapping_flattened = {}
-            if args.cats is not None:
-                for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter([catmap.split(":")[0] for catmap in args.cats.split(";")], pattern):
-                        blind_mapping_flattened[channel] = slice_string
-            else:
-                # If no --cats specified, try matching against available_channels
-                for pattern, slice_string in blind_mapping.items():
-                    for channel in fnmatch.filter(available_channels, pattern):
-                        blind_mapping_flattened[channel] = slice_string
-            logging.debug(f"Blind mapping flattened: {blind_mapping_flattened}")
+        if args.pseudo and args.toys:
+            style["data"]["label"] = "Toys"
+        elif args.pseudo and not args.toys:
+            style["data"]["label"] = "MC"
         else:
-            blind_mapping_flattened = []
-        # Take all unless blinded
-        if args.cats is None:
-            channels = [[c] for c in available_channels]
-            blinds = [True if c[0] in blind_cats else False for c in channels]
-            savenames = [c for c in available_channels]
-            labels = [None for c in available_channels]
-            logging.debug(f"Plotting channels: {channels}")
-        # Parse --cats, either mapping or list
+            style["data"]["label"] = "Data"
+
+        if args.blind is not None:
+            blind_cat_patterns = args.blind.split(",") if "," in args.blind else [args.blind]
         else:
-            # mapping
-            if ":" in args.cats:
-                channels = []
-                blinds = []
-                savenames = []
-                for cat in args.cats.split(";"):
-                    mcat, cats = cat.split(":")
-                    cats = sum(
-                        [fnmatch.filter(available_channels, _cat) for _cat in cats.split(",")],
-                        [],
+            blind_cat_patterns = []
+        logging.debug(f"Blind categories matching: {blind_cat_patterns}")
+
+        if args.blind_data is not None:
+            blind_mapping = {}
+            for _mapping in args.blind_data.split(";"):
+                cat_pattern, slice_string = _mapping.split(":", 1)
+                blind_mapping[cat_pattern] = slice_string
+            logging.debug(f"Blind data mapping:\n{blind_mapping}")
+        else:
+            blind_mapping = None
+
+        # Parse rmap
+        # Parse rmap (just for validation/logging here, actual passing happens in loop)
+        if args.rmap is not None:
+            kvs = args.rmap.split(",")
+            rmap = {kv.split(":")[0]: kv.split(":")[1] for kv in kvs}
+            logging.debug(f"Signal-to-POI mapping:\n{rmap}")
+        else:
+            rmap = None
+            if args.sigs:
+                 _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
+                 if len(_unset_sigs) > 0:
+                    logging.warning(
+                        f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
                     )
-                    # channels.append(cats.split(","))
-                    channels.append(cats)
-                    blinds.append(True if mcat in blind_cats else False)
-                    savenames.append(mcat)
-                    logging.debug(f"Plotting merged channels '{mcat}': {cats}")
-                    continue
-            # list
+
+        # Generate Tasks
+        # We iterate over tasks yielded by the generator
+        _procs: list[Process] = []
+        n_tasks = 0
+        all_tasks = [] # Store tasks to allow for label parsing and progress bar total
+        for task in generate_plot_tasks(args, fit_types, fd):
+            n_tasks += 1
+            all_tasks.append(task)
+            logging.debug(f"Processing task: {task}")
+
+        if n_tasks == 0:
+            logging.warning("No plotting tasks generated. Check your --cats or --fit options.")
+            sys.exit(0)
+
+        # Label parsing for list mode (legacy support for semicolon-separated labels matching task order)
+        # This is a bit fragile but maintains backward compatibility if user passed a list of labels
+        if args.catlabels is not None and ";" in args.catlabels and args.cats and ":" not in args.cats:
+            labels_list = args.catlabels.split(";")
+            if len(labels_list) == len(all_tasks):
+                for i, task in enumerate(all_tasks):
+                    task.label = labels_list[i]
             else:
-                channels = sum(
-                    [fnmatch.filter(available_channels, _cat) for _cat in args.cats.split(",")],
-                    [],
+                logging.warning(
+                    f"Number of labels ({len(labels_list)}) does not match number of plots ({len(all_tasks)}). Ignoring labels."
                 )
-                blinds = [True if c in blind_cats else False for c in channels]
-                savenames = [c for c in channels]
-                channels = [[c] for c in channels]
-                logging.debug(f"Plotting channels: {channels}")
-            if args.catlabels is not None:
-                if ";" in args.catlabels:
-                    labels = args.catlabels.split(";")
-                else:
-                    labels = [args.catlabels for c in channels]
-            else:
-                labels = [c for c in savenames]
-            labels = ["\n".join(lab.split("\\n")) for lab in labels]  # hacky but needed to pass \n from cmdline
 
         # Check for overlaps
+        from collections import defaultdict
         channel_to_cats = defaultdict(list)
-        for i, cat_channels in enumerate(channels):
-            cat_name = savenames[i]
-            for channel in cat_channels:
-                channel_to_cats[channel].append(cat_name)
+        for task in all_tasks:
+            for channel in task.channels:
+                channel_to_cats[(task.fittype, channel)].append(task.savename)
 
-        overlaps = {ch: cats for ch, cats in channel_to_cats.items() if len(cats) > 1}
-        if overlaps and not confirmed_overlap:
+        overlaps = {k: cats for k, cats in channel_to_cats.items() if len(cats) > 1}
+        if overlaps:
             from rich.console import Console
             from rich.table import Table
 
             console = Console()
-            # Category Composition Table
             summary_table = Table(
                 title="[bold red]Overlapping Categories Detected[/bold red]",
                 show_header=True,
                 header_style="bold magenta",
                 show_lines=True,
             )
+            summary_table.add_column("Fit Type", style="cyan")
             summary_table.add_column("Category", style="green")
             summary_table.add_column("Total", justify="right")
             summary_table.add_column("Composition (Red = Overlap)")
 
-            for i, cat_name in enumerate(savenames):
-                n_channels = len(channels[i])
+            for task in all_tasks:
+                n_channels = len(task.channels)
 
-                # Format channel list with highlighting
-                formatted_channels = []
-                for ch in channels[i]:
-                    if ch in overlaps:
-                        formatted_channels.append(f"[bold red]{ch}[/bold red]")
-                    else:
-                        formatted_channels.append(ch)
+                task_has_overlap = any((task.fittype, ch) in overlaps for ch in task.channels)
+                if not task_has_overlap:
+                    continue
 
+                formatted_channels = [
+                    f"[bold red]{ch}[/bold red]" if (task.fittype, ch) in overlaps else ch
+                    for ch in task.channels
+                ]
                 composition_str = ", ".join(formatted_channels)
-                summary_table.add_row(cat_name, str(n_channels), composition_str)
+                summary_table.add_row(task.fittype, task.savename, str(n_channels), composition_str)
 
             console.print(summary_table)
 
             if not Confirm.ask("[bold red]Do you want to continue with double-counted channels?[/bold red]"):
-                import sys
-
                 sys.exit("Aborted by user due to overlapping categories.")
-            confirmed_overlap = True
 
-        assert len(channels) != 0, (
-            f"Channel matching failed for --cats '{args.cats}'. Available categories are :{available_channels}"
-        )
-        assert isinstance(channels[0], list)
-        all_channels.extend(channels)
-        all_blinds.extend(blinds)
-        all_types.extend([fit_type] * len(channels))
-        all_savenames.extend(savenames)
-        all_labels.extend(labels)
-    logging.debug(f"All Channels: {all_channels}")
-    logging.debug(f"All Blinds: {all_blinds}")
-    logging.debug(f"All Types: {all_types}")
-    logging.debug(f"All Savenames: {all_savenames}")
-    logging.debug(f"All Labels: {all_labels}")
-    all_blind_ranges = (
-        [blind_mapping_flattened[channel] if channel in blind_mapping_flattened else None for channel in all_savenames]
-        if blind_mapping is not None
-        else [None for _ in all_savenames]
-    )
-    logging.debug(f"All Blind Ranges: {all_blind_ranges}")
-    _procs = []
-    with Progress(
-        TextColumn("[progress.description]{task.description}"),
-        SpinnerColumn(),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeRemainingColumn(),
-        TimeElapsedColumn(),
-    ) as progress:
-        prog_str_fmt = "[red]Plotting ({} workers): " if args.multiprocessing > 0 else "[red]Plotting: "
-        prog_str = prog_str_fmt.format("N")
-        prog_plotting = progress.add_task(prog_str, total=len(all_channels))
-        semaphore = Semaphore(args.multiprocessing)
-        for fittype, channel, blind, blind_range, sname, label in zip(
-            all_types, all_channels, all_blinds, all_blind_ranges, all_savenames, all_labels
-        ):
-            # Wrap it in a function to enable parallel processing
-            if label is None:
-                label = (
-                    1 if len(channel) < 6 else {s.split(":")[0]: s.split(":")[1] for s in args.cats.split(";")}[sname]
-                )
+        # Process Tasks
+        _procs = []
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            SpinnerColumn(),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeRemainingColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+            prog_str_fmt = "[red]Plotting ({} workers): " if args.multiprocessing > 0 else "[red]Plotting: "
+            prog_str = prog_str_fmt.format("N")
+            prog_plotting = progress.add_task(prog_str, total=len(all_tasks))
+            semaphore = Semaphore(args.multiprocessing)
 
-            def mod_plot(semaphore=None):
-                try:
-                    fig, (ax, rax) = plot_postfits.plot(
-                        fd,
-                        fittype,
-                        sigs=args.sigs.split(",") if args.sigs else None,
-                        bkgs=args.bkgs.split(",") if args.bkgs else None,
-                        onto=args.onto,
-                        project_signal=(
-                            [float(v) for v in args.project_signals.split(",")] if args.project_signals else None
+            for task in all_tasks:
+                # Resolve label if still None
+                if task.label is None:
+                    # Default label logic: use savename, replace \n
+                    task.label = task.savename
+
+                # Format label for plotting (handle newlines)
+                final_label = "\n".join(str(task.label).split(r"\n"))
+
+                if args.multiprocessing > 0:
+                    semaphore.acquire()
+                    p = Process(
+                        target=process_plot,
+                        args=(
+                            semaphore,
+                            fd,
+                            rfd,
+                            task,
+                            style,
+                            rmap,
+                            args,
+                            out_dir,
+                            format,
                         ),
-                        rmap=rmap,
-                        blind=blind,
-                        blind_data=blind_range,
-                        cats=channel,
-                        restoreNorm=True,
-                        clipx=args.clipx,
-                        fitDiag_root=rfd,
-                        style=style,
-                        cat_info=label,
-                        chi2=args.chi2,
-                        chi2_nocorr=args.chi2_nocorr,
-                        residuals=args.residuals,
+                        name=task.savename,
                     )
-                    if fig is None:
-                        return None
-                    # Styling
-                    if args.xlabel is not None:
-                        rax.set_xlabel(args.xlabel)
-                    if args.ylabel is not None:
-                        ax.set_ylabel(args.ylabel)
-                    hep.cms.label(
-                        args.cmslabel,
-                        data=not args.pseudo,
-                        ax=ax,
-                        lumi=args.lumi,
-                        lumi_format="{:0.0f}",
-                        com=args.com,
-                        supp=args.pub,
-                        year=args.year,
+                    _procs.append(p)
+                    p.start()
+                    time.sleep(0.1)
+
+                    n_running = sum([p.is_alive() for p in _procs])
+                    progress.update(
+                        prog_plotting,
+                        completed=len(_procs) - n_running,
+                        refresh=True,
+                        description=prog_str_fmt.format(n_running),
                     )
-                    # ax.semilogy()
-                    # ax.set_ylim(10, None)
-
-                    # Sci notat
-                    leading_dig_max, decimal_dig_max = 0, 0
-                    for tick in ax.get_yticks():
-                        leading_dig_max = max(leading_dig_max, get_digits(tick)[0])
-                        decimal_dig_max = max(decimal_dig_max, get_digits(tick)[1])
-                    if (leading_dig_max > 3) or (decimal_dig_max > 3):
-
-                        def g(x, pos):
-                            return rf"${sci_notation(x, sig_fig=1, no_zero=args.no_zero)}$"
-
-                        ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(g))
-
-                    # Save
-                    for fmt in format:
-                        logging.debug(f"Saving: '{args.output}/{fittype}/{sname}_{fittype}.{fmt}'")
-                        fig.savefig(
-                            f"{args.output}/{fittype}/{sname}_{fittype}.{fmt}",
-                            format=fmt,
-                            dpi=args.dpi,
-                            bbox_inches="tight",
-                            # transparent=True,
-                        )
-                finally:
-                    if semaphore is not None:
-                        semaphore.release()
-
+                    time_check(progress, _procs, 6)
+                else:
+                    process_plot(
+                        None,
+                        fd,
+                        rfd,
+                        task,
+                        style,
+                        rmap,
+                        args,
+                        out_dir,
+                        format,
+                    )
+                    progress.update(prog_plotting, advance=1, refresh=True)
             if args.multiprocessing > 0:
-                semaphore.acquire()
-                p = Process(target=mod_plot, args=(semaphore,), name=sname)
-                _procs.append(p)
-                p.start()
-                time.sleep(0.1)
+                while sum([p.is_alive() for p in _procs]) > 0:
+                    n_running = sum([p.is_alive() for p in _procs])
+                    progress.update(
+                        prog_plotting,
+                        completed=len(_procs) - n_running,
+                        refresh=True,
+                        description=prog_str_fmt.format(n_running),
+                    )
+                    time.sleep(0.1)
 
-                n_running = sum([p.is_alive() for p in _procs])
-                progress.update(
-                    prog_plotting,
-                    completed=len(_procs) - n_running,
-                    refresh=True,
-                    description=prog_str_fmt.format(n_running),
-                )
-                time_check(progress, _procs, 6)
-            else:
-                mod_plot()
-                progress.update(prog_plotting, advance=1, refresh=True)
-        if args.multiprocessing > 0:
-            while sum([p.is_alive() for p in _procs]) > 0:
-                n_running = sum([p.is_alive() for p in _procs])
-                progress.update(
-                    prog_plotting,
-                    completed=len(_procs) - n_running,
-                    refresh=True,
-                    description=prog_str_fmt.format(n_running),
-                )
-                time.sleep(0.1)
+                    time_check(progress, _procs, 6)
+            progress.update(
+                prog_plotting,
+                completed=n_tasks,
+                total=n_tasks,
+                refresh=True,
+                description=prog_str_fmt.format(0),
+            )
 
-                time_check(progress, _procs, 6)
-        progress.update(
-            prog_plotting,
-            completed=len(all_channels),
-            total=len(all_channels),
-            refresh=True,
-            description=prog_str_fmt.format(0),
-        )
 
+    finally:
+        fd.close()
+        if rfd:
+            rfd.Close()
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,7 @@
 # We can mock sys.modules to import it as a module OR better yet:
 # run it as a subprocess and feed stdin.
 import subprocess
+import sys
 import unittest
 
 ROOT_FILE = "tests/fitDiags/fit_diag_A.root"
@@ -13,8 +14,9 @@ class TestInteractiveOverlap(unittest.TestCase):
         # Create a command that triggers overlaps
         # Uses existing root file
         cmd = [
-            "python",
-            "make_plots.py",
+            sys.executable,
+            "-m",
+            "combine_postfits.make_plots",
             "--input",
             ROOT_FILE,
             "--cats",
@@ -44,8 +46,9 @@ class TestInteractiveOverlap(unittest.TestCase):
         """Test that the script proceeds when overlaps exist and user says 'y' (accept)"""
         # Create a command that triggers overlaps
         cmd = [
-            "python",
-            "make_plots.py",
+            sys.executable,
+            "-m",
+            "combine_postfits.make_plots",
             "--input",
             ROOT_FILE,
             "--cats",

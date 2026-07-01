@@ -91,9 +91,9 @@ def main():
     matplotlib.use("Agg")
     import argparse
 
-    import click
-    from rich.logging import RichHandler
     from rich_argparse_plus import RichHelpFormatterPlus
+
+    from combine_postfits.utils import setup_logging
 
     RichHelpFormatterPlus.styles["argparse.syntax"] = "#88C0D0"
 
@@ -204,21 +204,7 @@ def main():
 
     args = parser.parse_args()
 
-    log_level = logging.WARNING
-    if args.verbose:
-        log_level = logging.INFO
-    if args.debug:
-        log_level = logging.DEBUG
-    logging.getLogger("matplotlib").setLevel(logging.WARNING)
-    logging.getLogger("fsspec").setLevel(logging.WARNING)
-    logging.getLogger("ROOT").setLevel(logging.WARNING)
-    logging.getLogger("boost_histogram").setLevel(logging.WARNING)
-    logging.basicConfig(
-        level=log_level,
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True, tracebacks_suppress=[click])],
-    )
+    setup_logging(verbose=args.verbose, debug=args.debug)
 
     import os
 

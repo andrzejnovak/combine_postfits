@@ -316,7 +316,7 @@ def plot(
             _th = remove_tiny
         else:
             raise ValueError(f"Kwarg `remove_tiny={remove_tiny}` not understood.")
-        for key in hist_keys:
+        for key in list(hist_keys):
             if key in bkgs + sigs + project:
                 continue
             if np.sum(get_hist(key).values()) < _th:

@@ -116,7 +116,7 @@ def generate_plot_tasks(
         # Get available channels for this fit type
         # Shapes are like "shapes_prefit/channel/sample", we want "channel"
         # We filter out typical ROOT subdirectories or non-channel keys if necessary
-        available_channels = [c[:-2] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
+        available_channels = [c.split(";")[0] for c in fd[f"shapes_{fit_type}"].keys() if c.count("/") == 0]
         logging.debug(f"Available '{fit_type}' channels: {available_channels}")
 
         # Resolve which channels are blinded
@@ -623,12 +623,14 @@ def main():
             logging.debug(f"Signal-to-POI mapping:\n{rmap}")
         else:
             rmap = None
-            if args.sigs:
-                 _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
-                 if len(_unset_sigs) > 0:
-                    logging.warning(
-                        f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
-                    )
+
+        # Warn about any signals that lack an rmap entry (also catches partial --rmap)
+        if args.sigs:
+            _unset_sigs = [sig for sig in args.sigs.split(",") if rmap is None or sig not in rmap]
+            if _unset_sigs:
+                logging.warning(
+                    f"Signals '{','.join(_unset_sigs)}' not found in rmap: `{rmap}`. To display signal strengths pass `--rmap '{','.join([f'{_sig}:r_param' for _sig in _unset_sigs])}'`."
+                )
 
         # Generate Tasks
         # We iterate over tasks yielded by the generator
@@ -720,8 +722,8 @@ def main():
                     # Default label logic: use savename, replace \n
                     task.label = task.savename
 
-                # Format label for plotting (handle newlines)
-                final_label = "\n".join(str(task.label).split(r"\n"))
+                # Format label for plotting (translate literal '\n' into real newlines)
+                task.label = "\n".join(str(task.label).split(r"\n"))
 
                 if args.multiprocessing > 0:
                     semaphore.acquire()

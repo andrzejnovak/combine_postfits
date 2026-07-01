@@ -81,7 +81,6 @@ def setup_logging(verbose: bool = False, debug: bool = False) -> None:
     )
 
 
-
 def clean_yaml(style: dict) -> dict:
     """Clean and standardize the style dictionary (parse None, fix keys)."""
     for key in style:
@@ -310,11 +309,10 @@ def make_style_dict_yaml(
     return style
 
 
-
-
-
 # Formatting
-def format_legend(ax: plt.Axes, ncols: int = 2, handles_labels: tuple | None = None, **kwargs) -> matplotlib.legend.Legend:
+def format_legend(
+    ax: plt.Axes, ncols: int = 2, handles_labels: tuple | None = None, **kwargs
+) -> matplotlib.legend.Legend:
     """Format the legend to hold huge number of entries.
 
     Splits the legend into two columns to avoid extending off the plot.
@@ -390,7 +388,9 @@ def get_fit_unc(
 
 
 # Object conversion
-def tgasym_to_err(tgasym: uproot.model.Model, restoreNorm: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def tgasym_to_err(
+    tgasym: uproot.model.Model, restoreNorm: bool = True
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Convert TGraphAsymmErrors to numpy arrays (y, bins, ylo, yhi)."""
     x, y = tgasym.values("x"), tgasym.values("y")
     xlo, xhi = tgasym.errors("low", axis="x"), tgasym.errors("high", axis="x")
@@ -433,7 +433,10 @@ def getha(name: str, channels: list[uproot.ReadOnlyDirectory], restoreNorm: bool
 
 
 def geths(
-    names: list[str], channels: uproot.ReadOnlyDirectory | list[uproot.ReadOnlyDirectory], restoreNorm: bool = True, style_dict: dict | None = None
+    names: list[str],
+    channels: uproot.ReadOnlyDirectory | list[uproot.ReadOnlyDirectory],
+    restoreNorm: bool = True,
+    style_dict: dict | None = None,
 ) -> dict[str, hist.Hist]:
     """Retrieve multiple histograms, optionally sorting them by style_dict order."""
     if style_dict is not None:

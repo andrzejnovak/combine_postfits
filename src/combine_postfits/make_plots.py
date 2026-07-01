@@ -57,7 +57,6 @@ def time_check(progress: Progress, procs: list[Process], limit: int = 5) -> None
         sys.exit()
 
 
-
 def sci_notation(number: float, sig_fig: int = 1, no_zero: bool = False) -> str:
     """Format a number in scientific notation for LaTeX (e.g. 1.2 x 10^{3})."""
     ret_string = f"{number:.{sig_fig}e}"
@@ -627,7 +626,7 @@ def main():
         # We iterate over tasks yielded by the generator
         _procs: list[Process] = []
         n_tasks = 0
-        all_tasks = [] # Store tasks to allow for label parsing and progress bar total
+        all_tasks = []  # Store tasks to allow for label parsing and progress bar total
         for task in generate_plot_tasks(args, fit_types, fd):
             n_tasks += 1
             all_tasks.append(task)
@@ -651,6 +650,7 @@ def main():
 
         # Check for overlaps
         from collections import defaultdict
+
         channel_to_cats = defaultdict(list)
         for task in all_tasks:
             for channel in task.channels:
@@ -681,8 +681,7 @@ def main():
                     continue
 
                 formatted_channels = [
-                    f"[bold red]{ch}[/bold red]" if (task.fittype, ch) in overlaps else ch
-                    for ch in task.channels
+                    f"[bold red]{ch}[/bold red]" if (task.fittype, ch) in overlaps else ch for ch in task.channels
                 ]
                 composition_str = ", ".join(formatted_channels)
                 summary_table.add_row(task.fittype, task.savename, str(n_channels), composition_str)
@@ -778,11 +777,11 @@ def main():
                 description=prog_str_fmt.format(0),
             )
 
-
     finally:
         fd.close()
         if rfd:
             rfd.Close()
+
 
 if __name__ == "__main__":
     main()

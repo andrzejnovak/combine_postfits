@@ -83,10 +83,14 @@ class HistManager:
             _th = th * (np.max(self._max_value_global) if global_scale else np.max(_hobj.values()))
             non_zero_indices = np.where(_hobj.values() > _th)[0]
         if len(non_zero_indices) != len(_hobj.values()) and non_zero_indices.size > 1:
-            logging.debug(f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}.")
+            logging.debug(
+                f"  Hist '{name}' has values < '{_th:.3f}'. Setting to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
+            )
             _hobj.view().value[: non_zero_indices[0]] = np.nan
             _hobj.view().value[non_zero_indices[-1] + 1 :] = np.nan
-            logging.debug(f"  Hist '{name}' had values < '{_th:.3f}'. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}.")
+            logging.debug(
+                f"  Hist '{name}' had values < '{_th:.3f}'. Now set to NaNs: {[f'{v:.2f}' for v in _hobj.values()]}."
+            )
         return _hobj
 
 
@@ -103,13 +107,9 @@ def get_stack_styles(items, style_dict, onto=None):
         items = [onto] + items
     _hatch = [None if k == onto else style_dict[k]["hatch"] for k in items]
     _facecolor = [
-        "none" if h not in ["none", None] or k == onto else style_dict[k]["color"]
-        for k, h in zip(items, _hatch)
+        "none" if h not in ["none", None] or k == onto else style_dict[k]["color"] for k, h in zip(items, _hatch)
     ]
-    _edgecolor = [
-        style_dict[k]["color"] if h not in ["none", None] else None
-        for k, h in zip(items, _hatch)
-    ]
+    _edgecolor = [style_dict[k]["color"] if h not in ["none", None] else None for k, h in zip(items, _hatch)]
     _linewidth = [2 if k == onto else (0 if h not in ["none", None] else 0) for k, h in zip(items, _hatch)]
     return _facecolor, _edgecolor, _hatch, _linewidth
 
@@ -254,7 +254,6 @@ def plot(
     chi2 = config.chi2
     chi2_nocorr = config.chi2_nocorr
     residuals = config.residuals
-
 
     # ── Preparation ─────────────────────────────────────────────
     style = style.copy()

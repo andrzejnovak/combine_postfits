@@ -203,15 +203,24 @@ def make_style_dict_yaml(
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
-        x = np.arange(len(_h))
-        if len(_h) <= 1:
+        n = len(_h)
+        if n <= 1:
             return 0
-        try:
-            coef = np.polyfit(x, _h, 1)
-        except (np.linalg.LinAlgError, ValueError):
+        x = np.arange(n, dtype=float)
+
+        sum_x = np.sum(x)
+        sum_y = np.sum(_h)
+        sum_xy = np.sum(x * _h)
+        sum_xx = np.sum(x * x)
+        denominator = n * sum_xx - sum_x * sum_x
+
+        if denominator == 0:
             return 0
-        poly1d_fn = np.poly1d(coef)
-        fy = poly1d_fn(x)
+
+        slope = (n * sum_xy - sum_x * sum_y) / denominator
+        intercept = (sum_y - slope * sum_x) / n
+        fy = slope * x + intercept
+
         residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 

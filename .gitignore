@@ -3,3 +3,4 @@ tests/failed/
 tests/outs/
 
 src/combine_postfits/_version.py
+venv/

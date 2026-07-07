@@ -203,17 +203,26 @@ def make_style_dict_yaml(
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
-        x = np.arange(len(_h))
-        if len(_h) <= 1:
+        n = len(_h)
+        if n <= 1:
             return 0
-        try:
-            coef = np.polyfit(x, _h, 1)
-        except (np.linalg.LinAlgError, ValueError):
+
+        x = np.arange(n, dtype=float)
+        sum_x = x.sum()
+        sum_y = _h.sum()
+        sum_xx = (x * x).sum()
+        sum_xy = (x * _h).sum()
+
+        denominator = n * sum_xx - sum_x * sum_x
+        if denominator == 0:
             return 0
-        poly1d_fn = np.poly1d(coef)
-        fy = poly1d_fn(x)
+
+        m = (n * sum_xy - sum_x * sum_y) / denominator
+        b = (sum_y - m * sum_x) / n
+
+        fy = m * x + b
         residuals = abs(fy - _h) / np.sqrt(_h)
-        return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
+        return np.nan_to_num(residuals, posinf=0, neginf=0).sum()
 
     # Convert each histogram once (uproot's to_hist is not memoized) and index each ROOT key
     # a single time; reuse the cached hist objects for both the yield sum and the linearity score.

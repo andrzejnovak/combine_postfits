@@ -227,7 +227,9 @@ def make_style_dict_yaml(
                 if key in fitDiag and hasattr(fitDiag[key], "to_hist"):
                     hist_cache[k].append(fitDiag[key].to_hist())
 
-    yield_dict = {k: sum(sum(h.values()) for h in hist_cache[k]) for k in sample_keys}
+    # ⚡ Bolt: Use NumPy's native .sum() method instead of Python's sum()
+    # to avoid expensive scalar conversion overhead when aggregating values array.
+    yield_dict = {k: sum(h.values().sum() for h in hist_cache[k]) for k in sample_keys}
     linearity_dict = {
         # pad 0 to prevent mean on empty list
         k: np.mean([linearity(h) for h in hist_cache[k]] + [0])

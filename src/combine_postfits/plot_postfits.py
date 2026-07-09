@@ -310,9 +310,9 @@ def plot(
     # ── Remove tiny contributions ───────────────────────────────
     if remove_tiny:
         if isinstance(remove_tiny, str) and remove_tiny.endswith("%"):
-            _th = float(remove_tiny[:-1]) * 0.005 * np.sum(data.values())
+            _th = float(remove_tiny[:-1]) * 0.005 * data.values().sum()
         elif remove_tiny is True:
-            _th = 0.05 * np.sum(data.values())
+            _th = 0.05 * data.values().sum()
         elif isinstance(remove_tiny, (int, float)):
             _th = remove_tiny
         else:
@@ -320,7 +320,7 @@ def plot(
         for key in list(hist_keys):
             if key in bkgs + sigs + project:
                 continue
-            if np.sum(get_hist(key).values()) < _th:
+            if get_hist(key).values().sum() < _th:
                 logging.info(f"  Skipping hist {key}: because its yield is below threshold.")
                 hist_keys.remove(key)
 
@@ -542,8 +542,12 @@ def plot(
         )
     # Signal plotting
     # Plot total signal if sum of matched signals doesn't match total, emit warning
-    if not np.round(np.sum([get_hist(sig, raw=True).values() for sig in sigs_original])) == np.round(
-        np.sum(get_hist("total_signal", raw=True).values())
+    if (
+        not abs(
+            sum(get_hist(sig, raw=True).values().sum() for sig in sigs_original)
+            - get_hist("total_signal", raw=True).values().sum()
+        )
+        < 0.5
     ):
         logging.warning(
             f"  Sum of specified signals: {sigs_original} does not match 'total_signal'. Will plot 'total_signal' in the ratio instead."
@@ -569,7 +573,7 @@ def plot(
             label=[style[sig]["label"] for sig in sigs_original],
         )
     ## Bkg Unc
-    if np.sum(tot_bkg.variances()) == 0:
+    if tot_bkg.variances().sum() == 0:
         logging.warning(
             "  Background uncertainties not available (are 0) in fitDiagnostics file. "
             "Fit may not have converged correctly."

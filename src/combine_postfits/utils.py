@@ -189,14 +189,15 @@ def make_style_dict_yaml(
     avail_channels = [ch[:-2] for ch in fitDiag[f"shapes_{avail_fit_types[-1]}"] if ch.count("/") == 0]
 
     def get_samples_fitDiag(fitDiag):
-        snames = []
+        # Bolt optimization: Use set() and .update() instead of repeated list concatenations to prevent O(N^2) memory reallocation overhead
+        snames = set()
         for fit in avail_fit_types:
             try:
                 for ch in [ch[:-2] for ch in fitDiag[f"shapes_{fit}"] if ch.count("/") == 0]:
-                    snames += [k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys()]
+                    snames.update(k[:-2] for k in fitDiag[f"shapes_{fit}/{ch}"].keys())
             except KeyError:
                 print(f"Shapes: `shapes_{fit}` are missing from the fitDiagnostics")
-        return sorted([k for k in list(set(snames)) if "covar" not in k])
+        return sorted([k for k in snames if "covar" not in k])
 
     sample_keys = get_samples_fitDiag(fitDiag)
 

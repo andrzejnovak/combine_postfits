@@ -203,16 +203,21 @@ def make_style_dict_yaml(
     # Sorting - yield/peakiness
     def linearity(h):
         _h = h.values()
-        x = np.arange(len(_h))
         if len(_h) <= 1:
             return 0
-        try:
-            coef = np.polyfit(x, _h, 1)
-        except (np.linalg.LinAlgError, ValueError):
+        x = np.arange(len(_h), dtype=float)
+        sum_x = x.sum()
+        sum_y = _h.sum()
+        sum_xx = (x * x).sum()
+        sum_xy = (x * _h).sum()
+        denom = len(_h) * sum_xx - sum_x * sum_x
+        if denom == 0:
             return 0
-        poly1d_fn = np.poly1d(coef)
-        fy = poly1d_fn(x)
-        residuals = abs(fy - _h) / np.sqrt(_h)
+        m = (len(_h) * sum_xy - sum_x * sum_y) / denom
+        b = (sum_y - m * sum_x) / len(_h)
+        fy = m * x + b
+        with np.errstate(divide="ignore", invalid="ignore"):
+            residuals = abs(fy - _h) / np.sqrt(_h)
         return np.sum(np.nan_to_num(residuals, posinf=0, neginf=0))
 
     # Convert each histogram once (uproot's to_hist is not memoized) and index each ROOT key

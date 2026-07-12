@@ -317,10 +317,11 @@ def plot(
             _th = remove_tiny
         else:
             raise ValueError(f"Kwarg `remove_tiny={remove_tiny}` not understood.")
+        _keep_keys = set(bkgs + sigs + project)
         for key in list(hist_keys):
-            if key in bkgs + sigs + project:
+            if key in _keep_keys:
                 continue
-            if np.sum(get_hist(key).values()) < _th:
+            if get_hist(key, raw=True).values().sum() < _th:
                 logging.info(f"  Skipping hist {key}: because its yield is below threshold.")
                 hist_keys.remove(key)
 

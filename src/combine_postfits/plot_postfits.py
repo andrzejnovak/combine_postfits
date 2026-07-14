@@ -310,17 +310,18 @@ def plot(
     # ── Remove tiny contributions ───────────────────────────────
     if remove_tiny:
         if isinstance(remove_tiny, str) and remove_tiny.endswith("%"):
-            _th = float(remove_tiny[:-1]) * 0.005 * np.sum(data.values())
+            _th = float(remove_tiny[:-1]) * 0.005 * data.values().sum()
         elif remove_tiny is True:
-            _th = 0.05 * np.sum(data.values())
+            _th = 0.05 * data.values().sum()
         elif isinstance(remove_tiny, (int, float)):
             _th = remove_tiny
         else:
             raise ValueError(f"Kwarg `remove_tiny={remove_tiny}` not understood.")
+        _keep_keys = set(bkgs + sigs + project)
         for key in list(hist_keys):
-            if key in bkgs + sigs + project:
+            if key in _keep_keys:
                 continue
-            if np.sum(get_hist(key).values()) < _th:
+            if get_hist(key, raw=True).values().sum() < _th:
                 logging.info(f"  Skipping hist {key}: because its yield is below threshold.")
                 hist_keys.remove(key)
 
